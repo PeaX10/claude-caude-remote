@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Environment variables
+.env*
+
+# Build outputs
+dist/
+build/
+.turbo/
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+
+# OS
+.DS_Store
+
+# Expo
+.expo/
+
+# Temporary files
+tmp/

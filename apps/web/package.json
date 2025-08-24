@@ -1,0 +1,49 @@
+{
+  "name": "@claude-remote/mobile",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "expo start --dev-client --port 9877",
+    "android": "expo start --android --port 9877",
+    "ios": "expo start --ios --port 9877",
+    "start": "expo start --port 9877",
+    "web": "expo start --web --port 9877",
+    "build": "expo export",
+    "lint": "eslint . --ext .ts,.tsx --fix",
+    "clean": "rm -rf .expo dist"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.0.4",
+    "expo": "~52.0.0",
+    "expo-constants": "~17.0.3",
+    "expo-document-picker": "~12.0.2",
+    "expo-file-system": "~18.0.4",
+    "expo-linking": "~7.0.3",
+    "expo-router": "~4.0.9",
+    "expo-secure-store": "~14.0.0",
+    "expo-splash-screen": "~0.29.13",
+    "expo-status-bar": "~2.0.0",
+    "react": "18.3.1",
+    "react-hook-form": "^7.54.2",
+    "react-native": "0.75.4",
+    "react-native-gesture-handler": "~2.19.0",
+    "react-native-reanimated": "~3.16.1",
+    "react-native-safe-area-context": "4.12.0",
+    "react-native-screens": "~4.0.0",
+    "react-native-web": "~0.19.13",
+    "socket.io-client": "^4.8.1",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@types/react": "~18.3.12",
+    "@types/react-native": "~0.73.0",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-native": "^5.0.0",
+    "typescript": "~5.3.3"
+  },
+  "private": true
+}
