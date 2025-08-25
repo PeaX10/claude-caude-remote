@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "remote-control": {
+      "command": "node",
+      "args": [
+        "/Users/peax/Projects/claude-code-remote/.conductor/da-nang/claude-code-remote/mcp-bridge.js"
+      ],
+      "env": {
+        "INSTANCE_NAME": "Claude Code Remote Dev",
+        "INSTANCE_ID": "claude-remote-dev",
+        "REMOTE_SERVER": "http://localhost:3000",
+        "PROJECT_PATH": "/Users/peax/Projects/claude-code-remote/.conductor/da-nang/claude-code-remote"
+      }
+    }
+  }
+}

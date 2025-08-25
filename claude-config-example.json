@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "remote-control-frontend": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-bridge.js"],
+      "env": {
+        "INSTANCE_NAME": "Frontend React",
+        "INSTANCE_ID": "frontend-001",
+        "REMOTE_SERVER": "http://192.168.1.100:3000",
+        "PROJECT_PATH": "/Users/username/projects/my-frontend"
+      }
+    },
+    "remote-control-backend": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-bridge.js"],
+      "env": {
+        "INSTANCE_NAME": "Backend API",
+        "INSTANCE_ID": "backend-001",
+        "REMOTE_SERVER": "http://192.168.1.100:3000",
+        "PROJECT_PATH": "/Users/username/projects/my-backend"
+      }
+    },
+    "remote-control-mobile": {
+      "command": "node",
+      "args": ["/absolute/path/to/mcp-bridge.js"],
+      "env": {
+        "INSTANCE_NAME": "Mobile App",
+        "INSTANCE_ID": "mobile-001",
+        "REMOTE_SERVER": "http://192.168.1.100:3000",
+        "PROJECT_PATH": "/Users/username/projects/my-mobile-app"
+      }
+    }
+  }
+}
