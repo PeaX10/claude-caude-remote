@@ -16,8 +16,10 @@ export default function Dashboard() {
   const [isConnecting, setIsConnecting] = useState(true);
 
   useEffect(() => {
+    document.body.classList.add('fullscreen-mode');
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+    console.log('🔌 Main page connecting to:', backendUrl);
     const newSocket = io(backendUrl, {
       path: '/socket.io/',
       transports: ['websocket', 'polling']
@@ -64,9 +66,8 @@ export default function Dashboard() {
   const instanceArray = Array.from(instances.values());
 
   return (
-    <div className="min-h-screen p-4 md:p-8 overflow-x-hidden">
-
-      <header className="mb-6 md:mb-8 text-center md:text-left">
+    <div className="h-screen flex flex-col p-4 md:p-8">
+      <header className="flex-shrink-0 mb-6 md:mb-8 text-center md:text-left">
         <h1 className="text-2xl md:text-4xl font-bold mb-2 glass-text flex items-center justify-center md:justify-start gap-3">
           <Sparkles className="w-6 h-6 md:w-8 md:h-8 flex-shrink-0" />
           <span className="min-w-0">Claude Code Control Center</span>
@@ -76,9 +77,8 @@ export default function Dashboard() {
         </p>
       </header>
 
-
       {isConnecting && (
-        <div className="flex items-center justify-center mb-8">
+        <div className="flex-shrink-0 flex items-center justify-center mb-8">
           <Card className="glass-card">
             <CardContent className="flex items-center gap-2 p-4">
               <RefreshCw className="w-4 h-4 animate-spin" />
@@ -88,20 +88,16 @@ export default function Dashboard() {
         </div>
       )}
 
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-hidden">
-        {instanceArray.map((instance) => (
-          <InstanceCard key={instance.id} instance={instance} />
-        ))}
-
-
-        <CreateInstanceDialog socket={socket} />
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-12">
+          {instanceArray.map((instance) => (
+            <InstanceCard key={instance.id} instance={instance} />
+          ))}
+          <CreateInstanceDialog socket={socket} />
+        </div>
       </div>
 
-
-
-
-      <footer className="mt-12 text-center text-sm opacity-60">
+      <footer className="flex-shrink-0 mt-6 text-center text-sm opacity-60">
         <p>
           Server: {typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'} • 
           WebSocket: {socket?.connected ? 'Connected' : 'Disconnected'}

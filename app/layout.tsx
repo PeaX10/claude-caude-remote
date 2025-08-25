@@ -22,7 +22,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#000000",
+  userScalable: false,
+  themeColor: "#ffffff",
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -38,10 +40,9 @@ export default function RootLayout({
         {children}
         <Toaster 
           richColors
-          theme="dark"
+          theme="light"
           position="bottom-right"
           toastOptions={{
-            className: 'glass',
             duration: 5000,
           }}
         />

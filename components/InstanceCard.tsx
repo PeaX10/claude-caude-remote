@@ -10,10 +10,27 @@ import type { ClaudeInstance } from "@/lib/types";
 import { FileCode, MessageSquare, GitBranch, Trash2, MoreVertical } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useState } from "react";
+import { cva } from "class-variance-authority";
+import { cn } from "@/lib/utils";
 
 interface InstanceCardProps {
   instance: ClaudeInstance;
 }
+
+const cardVariants = cva(
+  "glass-hover hover:scale-105 transition-all duration-300 cursor-pointer",
+  {
+    variants: {
+      state: {
+        normal: "",
+        deleting: "opacity-50",
+      },
+    },
+    defaultVariants: {
+      state: "normal",
+    },
+  }
+);
 
 export function InstanceCard({ instance }: InstanceCardProps) {
   const { deleteInstance } = useStore();
@@ -59,7 +76,7 @@ export function InstanceCard({ instance }: InstanceCardProps) {
   return (
     <div className="relative">
       <Link href={`/instance/${instance.id}`}>
-        <Card className={`glass-hover hover:scale-105 transition-all duration-300 cursor-pointer ${isDeleting ? 'opacity-50' : ''}`}>
+        <Card className={cn(cardVariants({ state: isDeleting ? "deleting" : "normal" }))}>
           <CardHeader className="pb-4">
             <div className="flex justify-between items-start min-w-0">
               <div className="flex-1 min-w-0 overflow-hidden">

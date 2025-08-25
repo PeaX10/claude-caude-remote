@@ -2,19 +2,20 @@ export interface ClaudeInstance {
   id: string;
   name: string;
   projectPath: string;
-  status: 'connected' | 'disconnected' | 'launching';
+  branch?: string;
+  status: 'connected' | 'disconnected' | 'launching' | 'idle' | 'busy';
   stats: {
     messagesCount: number;
     lastActivity: Date;
     tokens?: number;
-    changes?: number;
+    changes: number;
   };
 }
 
 export interface Message {
   id: string;
   instanceId: string;
-  type: 'user' | 'assistant' | 'tool' | 'system';
+  type: 'user' | 'assistant' | 'tool' | 'system' | 'thinking';
   content: string;
   timestamp: Date;
   toolCall?: {
