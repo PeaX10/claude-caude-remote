@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-remote-backend",
+  "name": "@claude-remote/api",
   "version": "1.0.0",
   "description": "Backend API pour Claude Code Remote Control",
   "main": "dist/server.js",
@@ -7,7 +7,8 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
-    "dev": "tsx watch src/server.ts"
+    "dev": "PORT=3002 tsx watch src/server.ts",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "express": "^4.18.2",

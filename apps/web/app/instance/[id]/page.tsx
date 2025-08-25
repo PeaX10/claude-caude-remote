@@ -42,7 +42,7 @@ export default function InstanceView() {
     
     document.body.classList.add('fullscreen-mode');
     
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3002';
     console.log('🔌 Instance page connecting to:', backendUrl);
     const newSocket = io(backendUrl, {
       path: '/socket.io/',
