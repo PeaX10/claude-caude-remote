@@ -96,7 +96,7 @@ export default function ChatScreen() {
     
     setIsTyping(true)
 
-    if (claudeStatus.isRunning && isConnected) {
+    if (isConnected) {
       sendMessage(inputText)
       setTimeout(() => setIsTyping(false), 1500)
     } else {
