@@ -1,187 +1,296 @@
-# 🚀 Claude Code Remote Control
+# Claude Code Remote Control
 
-Modern web interface for controlling Claude Code remotely from any device.
-
-## ✨ Features
-
-- 📱 **Mobile-First Design** - Responsive touch-optimized interface
-- 🔍 **Directory Exploration** - Browse your computer remotely  
-- 📊 **Automatic Git Detection** - Prioritizes Git repositories
-- ⚡ **Full Automation** - Zero manual configuration required
-- 🌐 **Network Access** - Control from mobile/tablet devices
-- 🎯 **Real-Time Updates** - Bidirectional WebSocket communication
-- 🔧 **TypeScript Backend** - Type-safe Express server with Socket.io
-
-## 🚀 Quick Start
-
-### Prerequisites
-- [Bun](https://bun.sh/) runtime
-- [Claude Code](https://claude.ai/code) installed
-- Node.js 20+ (for compatibility)
-
-### 1. Installation
-```bash
-# Install backend dependencies
-cd backend && bun install
-
-# Install frontend dependencies  
-cd .. && bun install
-```
-
-### 2. Development
-```bash
-# Terminal 1: Start TypeScript backend (port 3001)
-cd backend && bun run dev
-
-# Terminal 2: Start Next.js frontend (port 3000)
-bun run dev
-```
-
-### 3. Access
-- **Local**: http://localhost:3000
-- **Network**: http://[YOUR-IP]:3000
-
-## 📱 Usage
-
-1. **Open the web interface**
-2. **Click "New Instance"** 
-3. **Enter a project name** (e.g., "My Project")
-4. **Browse** 🔍 to select a Git repository
-5. **Click "Create"**
-
-The system automatically:
-- ✅ Copies MCP bridge scripts
-- ✅ Generates configuration files  
-- ✅ Creates launch scripts
-- ✅ Starts Claude Code instance
+A comprehensive monorepo solution for remotely controlling Claude Code instances with real-time communication, built with modern technologies and best practices.
 
 ## 🏗️ Architecture
 
-### Backend (TypeScript)
-- **Express** - REST API server
-- **Socket.io** - Real-time WebSocket communication
-- **TypeScript** - Full type safety
-- **Bun** - Fast JavaScript runtime
+This monorepo contains:
 
-### Frontend
-- **Next.js 15** - React framework with App Router
-- **Tailwind CSS v4** - Modern styling system
-- **Zustand** - State management
-- **Socket.io Client** - Real-time updates
+- **`apps/api`**: Node.js server with WebSocket and REST API for Claude Code process management
+- **`apps/web`**: React Native Expo mobile app for remote control
+- **`packages/shared`**: Shared types, utilities, and validation schemas
 
-### Communication
-- **MCP Bridge** - Model Context Protocol integration
-- **WebSocket Events** - Instance management, file exploration
-- **REST API** - Health checks and instance listing
+## 🚀 Features
 
-## 📁 Project Structure
+### API Server (`apps/api`)
+- **Process Management**: Start, stop, and monitor Claude Code instances
+- **Real-time Communication**: WebSocket server for live updates
+- **Security**: JWT authentication, rate limiting, CORS protection
+- **System Monitoring**: Resource usage, health checks, and diagnostics
+- **Scalability**: Configurable process limits and resource management
 
+### Mobile App (`apps/web`)
+- **Cross-platform**: iOS, Android, and Web support via Expo
+- **Real-time UI**: Live process status updates
+- **State Management**: Redux Toolkit with persistence
+- **Material Design**: Modern UI with React Native Paper
+- **Offline Support**: Graceful handling of connection issues
+
+### Shared Package (`packages/shared`)
+- **Type Safety**: Comprehensive TypeScript definitions
+- **Validation**: Zod schemas for runtime type checking
+- **Utilities**: Common functions for both client and server
+
+## 🛠️ Technology Stack
+
+- **Backend**: Node.js, Express, WebSocket, TypeScript
+- **Frontend**: React Native, Expo, Redux Toolkit, React Native Paper
+- **Build System**: Turborepo for efficient monorepo management
+- **Validation**: Zod for runtime type checking
+- **Authentication**: JWT with bcrypt for security
+- **Deployment**: Docker with multi-stage builds
+
+## 📦 Quick Start
+
+### Prerequisites
+- Node.js 18+
+- npm 9+
+- Claude Code CLI installed
+- Docker (for deployment)
+
+### Development Setup
+
+1. **Clone and install dependencies**:
+```bash
+git clone <repository-url>
+cd claude-code-remote
+npm install
 ```
-.
-├── backend/                 # TypeScript Express server
-│   ├── src/
-│   │   ├── server.ts       # Main server entry point
-│   │   ├── types.ts        # TypeScript interfaces
-│   │   └── websocket/      # Socket.io handlers
-│   └── dist/               # Compiled JavaScript (ignored)
-├── app/                    # Next.js app directory
-├── components/             # React components
-├── lib/                    # Utilities and types
-└── public/                 # Static assets
+
+2. **Configure environment**:
+```bash
+# API server
+cp apps/api/.env.example apps/api/.env
+# Edit apps/api/.env with your configuration
+```
+
+3. **Start development servers**:
+```bash
+# Start all services
+npm run dev
+
+# Or start individually
+npm run dev --filter=@claude-remote/api     # API server
+npm run dev --filter=@claude-remote/web     # Mobile app
+```
+
+4. **Build for production**:
+```bash
+npm run build
+```
+
+## 🐳 Docker Deployment
+
+### Quick Deploy with Docker Compose
+
+```bash
+# Create environment file
+cp apps/api/.env.example .env
+
+# Start services
+docker-compose up -d
+
+# With nginx proxy (production)
+docker-compose --profile production up -d
+```
+
+### Manual Docker Build
+
+```bash
+# Build API server
+docker build -f Dockerfile.api -t claude-remote-api .
+
+# Run container
+docker run -d \\
+  --name claude-remote \\
+  -p 8080:8080 \\
+  -e JWT_SECRET=your-secret-key \\
+  claude-remote-api
 ```
 
 ## 🔧 Configuration
 
-### Environment Variables
+### API Server Environment Variables
 
-**Backend** (`.env`):
-```env
-PORT=3001
-HOST=0.0.0.0
-NODE_ENV=development
-```
-
-**Frontend** (`.env.local`):
-```env
-NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
-```
-
-### MCP Integration
-Each created instance generates:
-- `config.json` - MCP server configuration
-- `launch.sh` - Claude Code startup script
-- `mcp-bridge.js` - Communication bridge
-
-## 🚀 Production Deployment
-
-### Build
 ```bash
-# Build backend
-cd backend && bun run build
+# Server Configuration
+PORT=8080                    # Server port
+HOST=localhost              # Server host
+NODE_ENV=development        # Environment
 
-# Build frontend
-bun run build
+# Authentication
+JWT_SECRET=your-secret-key  # JWT signing secret
+TOKEN_EXPIRY=24h           # Token expiration
+AUTH_ENABLED=true          # Enable authentication
+
+# CORS
+CORS_ORIGIN=*              # Allowed origins
+CORS_CREDENTIALS=true      # Allow credentials
+
+# Claude Code
+CLAUDE_EXECUTABLE_PATH=/usr/local/bin/claude  # Claude CLI path
+CLAUDE_DEFAULT_TIMEOUT=30000                  # Process timeout
+CLAUDE_MAX_PROCESSES=10                       # Max concurrent processes
+
+# Logging
+LOG_LEVEL=info             # Log level
+LOG_FILE=logs/app.log      # Log file path
 ```
 
-### Start
+### Mobile App Configuration
+
+The mobile app automatically discovers and connects to the API server. Configure the server URL in the app settings or by setting the `EXPO_PUBLIC_API_URL` environment variable.
+
+## 📋 API Documentation
+
+### REST Endpoints
+
+#### Process Management
+- `GET /api/processes` - List all processes
+- `GET /api/processes/:id` - Get specific process
+- `POST /api/processes` - Start new process
+- `DELETE /api/processes/:id` - Stop process
+- `POST /api/processes/:id/input` - Send input to process
+
+#### System Information
+- `GET /api/system/status` - Get system status
+- `GET /api/system/health` - Health check
+
+### WebSocket Events
+
+#### Client to Server
+- `process_start` - Start new process
+- `process_stop` - Stop process
+- `process_list` - Request process list
+- `claude_input` - Send input to Claude
+- `heartbeat` - Keep connection alive
+
+#### Server to Client
+- `process_status` - Process status update
+- `claude_output` - Output from Claude
+- `system_status` - System status update
+- `error` - Error notification
+
+## 🧪 Development
+
+### Project Structure
+```
+claude-code-remote/
+├── apps/
+│   ├── api/                 # Node.js API server
+│   │   ├── src/
+│   │   │   ├── config/      # Configuration
+│   │   │   ├── routes/      # API routes
+│   │   │   ├── services/    # Business logic
+│   │   │   ├── utils/       # Utilities
+│   │   │   └── websocket/   # WebSocket handling
+│   │   └── package.json
+│   └── web/                 # React Native app
+│       ├── app/             # Expo Router pages
+│       ├── components/      # Reusable components
+│       ├── hooks/           # Custom hooks
+│       ├── services/        # API clients
+│       ├── store/           # Redux store
+│       └── package.json
+├── packages/
+│   └── shared/              # Shared code
+│       ├── src/
+│       │   ├── types/       # TypeScript definitions
+│       │   └── utils/       # Utility functions
+│       └── package.json
+├── docker-compose.yml       # Docker deployment
+├── Dockerfile.api          # API server Docker image
+└── turbo.json             # Turborepo configuration
+```
+
+### Development Commands
+
 ```bash
-# Start backend
-cd backend && bun start
+# Install dependencies
+npm install
 
-# Start frontend
-bun start
+# Development
+npm run dev                 # Start all services
+npm run dev:api            # Start API server only
+npm run dev:web            # Start mobile app only
+
+# Building
+npm run build              # Build all packages
+npm run build:api          # Build API server
+npm run build:web          # Build mobile app
+
+# Testing & Quality
+npm run lint               # Lint all packages
+npm run type-check         # TypeScript checking
+npm run test               # Run tests
+
+# Cleanup
+npm run clean              # Clean build artifacts
 ```
 
-## 📊 Features in Detail
+### Mobile App Development
 
-### Instance Management
-- Create/delete Claude Code instances
-- Real-time status monitoring
-- Project path validation
-- Automatic Git repository detection
+The mobile app uses Expo for development and can run on:
+- **iOS Simulator** (macOS only)
+- **Android Emulator**
+- **Physical devices** via Expo Go
+- **Web browser** for testing
 
-### File System Integration
-- Remote directory browsing
-- Git repository prioritization
-- Mobile-optimized navigation
-- Touch-friendly interface
-
-### Real-Time Communication
-- WebSocket-based updates
-- Instance status synchronization
-- Message and tool call tracking
-- Git status monitoring
-
-## 🛠️ Development
-
-### Scripts
 ```bash
-# Backend
-cd backend
-bun run dev      # Development with watch mode
-bun run build    # Compile TypeScript
-bun start        # Production server
+cd apps/web
 
-# Frontend  
-bun run dev      # Next.js development
-bun run build    # Production build
-bun start        # Production server
+# Start development server
+npm run dev
+
+# Run on specific platform
+npm run ios        # iOS simulator
+npm run android    # Android emulator
+npm run web        # Web browser
 ```
 
-### Type Safety
-- Full TypeScript coverage
-- Strict type checking
-- Interface definitions for all data structures
-- Type-safe WebSocket events
+## 🔒 Security
 
-## 📝 Notes
+- **Authentication**: JWT tokens with configurable expiration
+- **Rate Limiting**: Configurable request throttling
+- **CORS**: Configurable cross-origin policies
+- **Input Validation**: Runtime validation with Zod schemas
+- **Security Headers**: Helmet.js for HTTP security
+- **Process Isolation**: Secure process spawning and management
 
-- Instances are isolated and portable
-- Configurations stored in `.claude-remote/` per project
-- Mobile-optimized responsive design
-- Automatic cleanup on disconnection
-- Cross-platform compatibility
+## 📈 Monitoring & Logging
 
----
+- **Structured Logging**: Winston with configurable levels
+- **Health Checks**: Built-in health endpoints
+- **System Metrics**: Resource usage monitoring
+- **Process Tracking**: Real-time process status
+- **Error Handling**: Comprehensive error reporting
 
-*Fully automated Claude Code remote control - no manual setup required! 🎉*
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Run linting and type checking
+6. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🆘 Support
+
+- **Issues**: Report bugs and feature requests on GitHub
+- **Documentation**: Check the `/docs` folder for detailed guides
+- **Community**: Join our discussions in GitHub Discussions
+
+## 🚀 Roadmap
+
+- [ ] Authentication integration
+- [ ] Process templates and presets
+- [ ] File upload/download support
+- [ ] Plugin system for extensions
+- [ ] Performance optimization
+- [ ] Advanced monitoring dashboard
+- [ ] Multi-server support
+- [ ] Cloud deployment guides
