@@ -9,7 +9,7 @@ import {
   Modal,
   TextInput
 } from 'react-native'
-import { useWebSocket } from '../../hooks/useWebSocket'
+import { useWebSocket } from '../../hooks/use-web-socket'
 import { useStore } from '../../store'
 import { colors, spacing } from '../../theme/colors'
 
@@ -20,7 +20,7 @@ export default function GitScreen() {
   const [newBranchName, setNewBranchName] = useState('')
   const [activeTab, setActiveTab] = useState<'status' | 'branches' | 'commits'>('status')
 
-  const { isConnected, runGitCommand } = useWebSocket()
+  const { isConnected, runGitCommand } = use-web-socket()
   const { isClaudeRunning } = useStore()
 
   const handleCommit = () => {

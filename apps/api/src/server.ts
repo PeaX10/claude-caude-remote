@@ -2,11 +2,11 @@ import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import cors from 'cors'
-import { spawn, ChildProcess, exec } from 'child_process'
-import { EventEmitter } from 'events'
+import { exec } from 'child_process'
 import { promisify } from 'util'
 import { readdir, stat, readFile, writeFile, mkdir, unlink } from 'fs/promises'
 import path from 'path'
+import { ClaudeService } from './services/claude-service'
 
 const execAsync = promisify(exec)
 
@@ -14,253 +14,6 @@ interface ClaudeMessage {
   type: 'output' | 'error' | 'command' | 'status'
   content: string
   timestamp: number
-}
-
-class ClaudeCodeWrapper extends EventEmitter {
-  private tmuxSession: string = 'claude-code-session'
-  private isRunning = false
-  private checkInterval: NodeJS.Timeout | null = null
-  private lastOutput: string = ''
-  
-  constructor() {
-    super()
-  }
-  
-  async start(projectPath: string = process.cwd()): Promise<boolean> {
-    if (this.isRunning) return false
-    
-    try {
-      console.log(`🚀 Starting Claude Code in tmux session: ${this.tmuxSession}`)
-      console.log(`📁 Project path: ${projectPath}`)
-      
-      // Kill existing session if it exists
-      await this.killExistingSession()
-      
-      // Create new tmux session with Claude Code
-      const tmuxCommand = [
-        'tmux', 'new-session', '-d', '-s', this.tmuxSession, 
-        '-c', projectPath,  // Set working directory
-        'claude', '--continue'
-      ]
-      
-      console.log('🔧 Running:', tmuxCommand.join(' '))
-      
-      const result = await execAsync(tmuxCommand.join(' '))
-      console.log('✅ tmux session created:', result.stdout)
-      
-      this.isRunning = true
-      this.startSessionMonitoring()
-      
-      // Wait for Claude to initialize then get conversation history
-      setTimeout(async () => {
-        try {
-          const currentOutput = await this.getOutput()
-          if (currentOutput.trim()) {
-            const filtered = this.filterClaudeOutput(currentOutput)
-            if (filtered.content) {
-              console.log('📋 Emitting conversation history after Claude startup')
-              this.emit('history', {
-                type: 'output',
-                content: filtered.content,
-                contextPercent: filtered.contextPercent,
-                timestamp: Date.now()
-              } as ClaudeMessage & { contextPercent?: number })
-            }
-          }
-        } catch (error) {
-          console.log('❌ Error getting initial conversation history:', error)
-        }
-      }, 3000) // Wait 3 seconds for Claude to fully load
-      
-      return true
-      
-    } catch (error) {
-      console.error('❌ Failed to start Claude Code in tmux:', error)
-      return false
-    }
-  }
-  
-  private async killExistingSession() {
-    try {
-      await execAsync(`tmux kill-session -t ${this.tmuxSession}`)
-      console.log('🗑️ Killed existing tmux session')
-    } catch (error) {
-      // Session doesn't exist, which is fine
-    }
-  }
-  
-  private startSessionMonitoring() {
-    this.checkInterval = setInterval(async () => {
-      try {
-        await execAsync(`tmux has-session -t ${this.tmuxSession}`)
-        // Session exists, all good
-      } catch (error) {
-        // Session died
-        console.log('💀 tmux session died')
-        this.isRunning = false
-        this.emit('status', 'Session died')
-        if (this.checkInterval) {
-          clearInterval(this.checkInterval)
-          this.checkInterval = null
-        }
-      }
-    }, 5000) // Check every 5 seconds
-  }
-
-  filterClaudeOutput(content: string): { content: string, contextPercent: number | null } {
-    const lines = content.split('\n')
-    const filteredLines = []
-    let contextPercent = null
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      const trimmed = line.trim()
-      
-      // Skip empty lines
-      if (!trimmed) continue
-      
-      // Skip box drawing characters (UI elements)
-      if (trimmed.match(/^[╭╮╰╯│─┌┐└┘├┤┬┴┼─━┃┏┓┗┛┣┫┳┻╋]+$/)) continue
-      
-      // Skip lines that are just borders with content
-      if (trimmed.match(/^[╭╮╰╯│─]+.*[╭╮╰╯│─]+$/)) continue
-      
-      // Extract context percentage
-      if (trimmed.includes('Context left until auto-compact:')) {
-        const match = trimmed.match(/Context left until auto-compact:\s*(\d+)%/)
-        if (match) {
-          contextPercent = parseInt(match[1])
-        }
-        continue
-      }
-      
-      // Transform user input lines (starting with >) into a cleaner format
-      if (trimmed.startsWith('>')) {
-        const userMessage = trimmed.substring(1).trim()
-        if (userMessage) {
-          filteredLines.push(`**You:** ${userMessage}`)
-        }
-        continue
-      }
-      
-      // Skip very short lines that are likely UI elements
-      if (trimmed.length < 3) continue
-      
-      // Keep substantial content lines
-      filteredLines.push(trimmed)
-    }
-    
-    return {
-      content: filteredLines.join('\n\n').trim(),
-      contextPercent
-    }
-  }
-  
-  async sendMessage(message: string): Promise<boolean> {
-    if (!this.isRunning) return false
-    
-    try {
-      console.log('📥 Sending to tmux session:', message)
-      
-      // Send message to tmux session
-      await execAsync(`tmux send-keys -t ${this.tmuxSession} '${message.replace(/'/g, "'")}' Enter`)
-      
-      // Wait a bit then capture the output
-      setTimeout(async () => {
-        try {
-          const result = await execAsync(`tmux capture-pane -t ${this.tmuxSession} -p`)
-          const currentOutput = result.stdout
-          
-          // Only send new content since last capture
-          if (currentOutput !== this.lastOutput) {
-            const lines = currentOutput.split('\n')
-            const lastLines = this.lastOutput.split('\n')
-            
-            // Find new lines
-            const newLines = lines.slice(lastLines.length)
-            const newContent = newLines.join('\n').trim()
-            
-            if (newContent) {
-              // Filter out UI elements and keep only Claude's responses
-              const filtered = this.filterClaudeOutput(newContent)
-              
-              if (filtered.content) {
-                console.log('📤 Filtered Claude response:', filtered.content.slice(0, 200) + '...')
-                this.emit('output', {
-                  type: 'output',
-                  content: filtered.content,
-                  contextPercent: filtered.contextPercent,
-                  timestamp: Date.now()
-                } as ClaudeMessage & { contextPercent?: number })
-              }
-            }
-            
-            this.lastOutput = currentOutput
-          }
-        } catch (error) {
-          console.log('❌ Error capturing tmux output:', error)
-        }
-      }, 3000) // Wait 3 seconds for Claude to respond
-      
-      this.emit('command', {
-        type: 'command',
-        content: message,
-        timestamp: Date.now()
-      } as ClaudeMessage)
-      return true
-    } catch (error) {
-      console.log('❌ Error sending to tmux:', error)
-      return false
-    }
-  }
-  
-  async getOutput(): Promise<string> {
-    if (!this.isRunning) return ''
-    
-    try {
-      const result = await execAsync(`tmux capture-pane -t ${this.tmuxSession} -p`)
-      return result.stdout
-    } catch (error) {
-      console.log('❌ Error getting tmux output:', error)
-      return ''
-    }
-  }
-  
-  async interrupt(): Promise<boolean> {
-    if (!this.isRunning) return false
-    
-    try {
-      // Send Ctrl+C to tmux session
-      await execAsync(`tmux send-keys -t ${this.tmuxSession} C-c`)
-      return true
-    } catch {
-      return false
-    }
-  }
-  
-  async stop(): Promise<boolean> {
-    if (!this.isRunning) return false
-    
-    try {
-      if (this.checkInterval) {
-        clearInterval(this.checkInterval)
-        this.checkInterval = null
-      }
-      
-      await execAsync(`tmux kill-session -t ${this.tmuxSession}`)
-      this.isRunning = false
-      return true
-    } catch {
-      return false
-    }
-  }
-  
-  getStatus() {
-    return {
-      isRunning: this.isRunning,
-      pid: this.isRunning ? 1 : null // tmux doesn't have a single PID
-    }
-  }
 }
 
 const app = express()
@@ -277,7 +30,7 @@ const io = new Server(server, {
 })
 
 const PORT = process.env.PORT || 9876
-const claude = new ClaudeCodeWrapper()
+const claude = new ClaudeService()
 
 app.use(cors())
 app.use(express.json())
@@ -408,13 +161,14 @@ io.on('connection', async (socket) => {
   console.log('📊 Sending initial status:', status)
   socket.emit('claude_status', status)
   
-  // If Claude is already running, send current output
   if (status.isRunning) {
     try {
-      const currentOutput = await claude.getOutput()
-      if (currentOutput.trim()) {
-        console.log('📋 Sending current Claude state to new client')
-        const filtered = claude.filterClaudeOutput(currentOutput)
+      const result = await execAsync(`tmux capture-pane -t ${claude.tmuxSession} -S -3000 -p`)
+      const fullOutput = result.stdout
+      
+      if (fullOutput.trim()) {
+        console.log('📋 Sending full conversation history to new client')
+        const filtered = claude.filterClaudeOutput(fullOutput)
         socket.emit('claude_output', {
           type: 'output',
           content: filtered.content,
@@ -423,7 +177,7 @@ io.on('connection', async (socket) => {
         })
       }
     } catch (error) {
-      console.log('❌ Error getting current output for new client:', error)
+      console.log('❌ Error getting full history for new client:', error)
     }
   }
   
@@ -440,22 +194,26 @@ io.on('connection', async (socket) => {
     status: claude.getStatus()
   })
   const handleHistory = (message: ClaudeMessage) => socket.emit('claude_output', message)
+  const handleContext = (data: { contextPercent: number, timestamp: number }) => {
+    socket.emit('claude_context', data)
+  }
   
   claude.on('output', handleOutput)
   claude.on('error', handleError)
   claude.on('status', handleStatus)
   claude.on('history', handleHistory)
+  claude.on('context', handleContext)
   
   socket.on('disconnect', () => {
     claude.off('output', handleOutput)
     claude.off('error', handleError)
     claude.off('status', handleStatus)
     claude.off('history', handleHistory)
+    claude.off('context', handleContext)
   })
   
   socket.on('claude_start', async (data) => {
     console.log('🚀 Starting Claude Code...')
-    // Start Claude in the project root, not in the API directory
     const projectRoot = path.resolve(__dirname, '../../../')
     const success = await claude.start(data?.projectPath || projectRoot)
     const status = claude.getStatus()
@@ -468,15 +226,22 @@ io.on('connection', async (socket) => {
   })
 
   socket.on('claude_full_output', async () => {
-    const output = await claude.getOutput()
-    const filtered = claude.filterClaudeOutput(output)
-    if (filtered.content) {
-      socket.emit('claude_output', {
-        type: 'output',
-        content: filtered.content,
-        contextPercent: filtered.contextPercent,
-        timestamp: Date.now()
-      })
+    try {
+      const result = await execAsync(`tmux capture-pane -t ${claude.tmuxSession} -S -3000 -p`)
+      const fullOutput = result.stdout
+      
+      const filtered = claude.filterClaudeOutput(fullOutput)
+      if (filtered.content) {
+        console.log('📋 Sending full history via refresh button')
+        socket.emit('claude_output', {
+          type: 'output',
+          content: filtered.content,
+          contextPercent: filtered.contextPercent,
+          timestamp: Date.now()
+        })
+      }
+    } catch (error) {
+      console.log('❌ Error getting full output:', error)
     }
   })
 

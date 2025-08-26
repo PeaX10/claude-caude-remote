@@ -34,6 +34,10 @@ export const colors = {
     input: "#3c3c3c",
     hover: "#2a2d2e",
   },
+  shadow: {
+    primary: "#000",
+    secondary: "rgba(0, 0, 0, 0.2)",
+  },
 };
 
 export const shadows = {

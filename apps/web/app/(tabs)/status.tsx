@@ -10,7 +10,7 @@ import {
   Modal,
   TextInput,
 } from "react-native";
-import { useWebSocket } from "../../hooks/useWebSocket";
+import { useWebSocket } from "../../hooks/use-web-socket";
 import { useStore } from "../../store";
 import { Button } from '../../components/ui/button';
 import { colors, shadows, spacing } from '../../theme/colors';
@@ -27,7 +27,7 @@ export default function StatusScreen() {
   const [showServerSettings, setShowServerSettings] = useState(false);
 
   const { isConnected, claudeStatus, startClaude, sendMessage } =
-    useWebSocket(serverUrl);
+    use-web-socket(serverUrl);
   const { currentModel, setCurrentModel, isClaudeRunning, clearMessages } =
     useStore();
 

@@ -12,7 +12,7 @@ import {
   ActivityIndicator
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
-import { useWebSocket } from '../../hooks/useWebSocket'
+import { useWebSocket } from '../../hooks/use-web-socket'
 import { useStore } from '../../store'
 import { colors, spacing } from '../../theme/colors'
 

@@ -19,6 +19,35 @@ export function useWebSocket(serverUrl: string = 'http://127.0.0.1:9876') {
   const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus>({ isRunning: false, pid: null })
   const [messages, setMessages] = useState<ClaudeMessage[]>([])
   const [contextPercent, setContextPercent] = useState<number | null>(null)
+  const [lastFullContent, setLastFullContent] = useState<string>('')
+
+  const getDiffContent = (newContent: string): string => {
+    if (!lastFullContent) {
+      return newContent
+    }
+    
+    if (newContent.startsWith(lastFullContent)) {
+      const diff = newContent.substring(lastFullContent.length).trim()
+      return diff
+    }
+    
+    if (!newContent.includes(lastFullContent.substring(0, 100))) {
+      return newContent
+    }
+    
+    const oldParagraphs = lastFullContent.split('\n\n')
+    const newParagraphs = newContent.split('\n\n')
+    
+    let diffIndex = oldParagraphs.length
+    for (let i = 0; i < Math.min(oldParagraphs.length, newParagraphs.length); i++) {
+      if (oldParagraphs[i] !== newParagraphs[i]) {
+        diffIndex = i
+        break
+      }
+    }
+    
+    return newParagraphs.slice(diffIndex).join('\n\n').trim()
+  }
 
   useEffect(() => {
     console.log('🔗 Attempting to connect to:', serverUrl)
@@ -31,6 +60,10 @@ export function useWebSocket(serverUrl: string = 'http://127.0.0.1:9876') {
     newSocket.on('connect', () => {
       console.log('✅ Connected to server:', serverUrl)
       setIsConnected(true)
+      
+      setTimeout(() => {
+        newSocket.emit('claude_full_output')
+      }, 1000)
     })
 
     newSocket.on('disconnect', () => {
@@ -45,17 +78,46 @@ export function useWebSocket(serverUrl: string = 'http://127.0.0.1:9876') {
     newSocket.on('claude_status', (status: ClaudeStatus) => {
       console.log('📊 Claude status received:', status)
       setClaudeStatus(status)
+      
+      if (!status.isRunning) {
+        console.log('🚀 Auto-starting Claude Code...')
+        setTimeout(() => {
+          newSocket.emit('claude_start', {})
+        }, 1000)
+      }
     })
 
     newSocket.on('claude_output', (message: ClaudeMessage) => {
-      setMessages(prev => [...prev, message])
+      console.log('📨 Received full content, calculating diff...')
+      
+      const diffContent = getDiffContent(message.content)
+      
+      if (diffContent) {
+        console.log('📨 Adding new content:', diffContent.slice(0, 100) + '...')
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          type: message.type === 'output' ? 'claude' : 'system',
+          content: diffContent,
+          timestamp: message.timestamp
+        }])
+      } else {
+        console.log('📨 No new content to display')
+      }
+      
+      setLastFullContent(message.content)
+      
       if (message.contextPercent !== undefined) {
         setContextPercent(message.contextPercent)
       }
     })
 
     newSocket.on('claude_error', (message: ClaudeMessage) => {
-      setMessages(prev => [...prev, message])
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        type: 'system',
+        content: message.content,
+        timestamp: message.timestamp
+      }])
     })
 
     newSocket.on('claude_status_update', (update: any) => {
@@ -70,7 +132,11 @@ export function useWebSocket(serverUrl: string = 'http://127.0.0.1:9876') {
     newSocket.on('claude_start_result', (result: { success: boolean, status: ClaudeStatus }) => {
       console.log('🚀 Claude start result:', result)
       setClaudeStatus(result.status)
-      // Don't add a "started successfully" message - we'll get the conversation history instead
+    })
+
+    newSocket.on('claude_context', (data: { contextPercent: number, timestamp: number }) => {
+      console.log('📊 Context update:', data.contextPercent + '%')
+      setContextPercent(data.contextPercent)
     })
 
     return () => {
@@ -79,15 +145,25 @@ export function useWebSocket(serverUrl: string = 'http://127.0.0.1:9876') {
   }, [serverUrl])
 
   const startClaude = (projectPath?: string) => {
+    setLastFullContent('')
+    setMessages([])
     socket?.emit('claude_start', { projectPath })
   }
 
   const getFullOutput = () => {
+    setLastFullContent('')
+    setMessages([])
     socket?.emit('claude_full_output')
   }
 
   const sendMessage = (message: string) => {
     if (socket && socket.connected) {
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        type: 'user',
+        content: message,
+        timestamp: Date.now()
+      }])
       socket.emit('claude_message', { message })
     }
   }
