@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Animated, Dimensions, TouchableWithoutFeedback } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { colors, spacing } from '../theme/colors'
+import { useStore } from '../store'
 
 interface Project {
   name: string
   path: string
+  encodedPath?: string
   sessions: number
 }
 
@@ -28,10 +30,10 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
   const [projectSessions, setProjectSessions] = useState<{ [key: string]: Session[] }>({})
   const [selectedSession, setSelectedSession] = useState<string | null>(null)
-  const [activeProject, setActiveProject] = useState<string | null>(null)
   const slideAnim = useState(new Animated.Value(isOpen ? 0 : -280))[0]
   const overlayAnim = useState(new Animated.Value(isOpen ? 1 : 0))[0]
   const { width } = Dimensions.get('window')
+  const { activeProjectPath, setActiveProject } = useStore()
 
   useEffect(() => {
     Animated.parallel([
@@ -52,15 +54,12 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
   useEffect(() => {
     if (!socket) return
 
-    // Request projects when socket connects
     socket.emit('claude_get_projects')
 
-    // Listen for projects
     socket.on('claude_projects', (data: Project[]) => {
       setProjects(data)
     })
 
-    // Listen for project sessions
     socket.on('claude_project_sessions', (data: { projectPath: string, sessions: Session[] }) => {
       setProjectSessions(prev => ({
         ...prev,
@@ -80,7 +79,6 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
       newExpanded.delete(projectPath)
     } else {
       newExpanded.add(projectPath)
-      // Request sessions for this project
       socket?.emit('claude_get_project_sessions', { projectPath })
     }
     setExpandedProjects(newExpanded)
@@ -88,7 +86,7 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
 
   const handleSelectSession = (sessionId: string, projectPath: string) => {
     setSelectedSession(sessionId)
-    setActiveProject(projectPath)
+    setActiveProject(projectPath, sessionId)
     onSelectSession(sessionId, projectPath)
   }
 
@@ -128,7 +126,7 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
       
       <ScrollView style={styles.content}>
         {projects.map((project) => (
-          <View key={project.path}>
+          <View key={project.encodedPath || project.path}>
             <TouchableOpacity 
               style={styles.projectItem}
               onPress={() => toggleProject(project.path)}
@@ -142,7 +140,7 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
               <View style={styles.projectInfo}>
                 <View style={styles.projectHeader}>
                   <Text style={styles.projectName}>{project.name}</Text>
-                  {activeProject === project.path && (
+                  {activeProjectPath === project.path && (
                     <View style={styles.activeIndicator} />
                   )}
                 </View>
@@ -270,10 +268,16 @@ const styles = {
     backgroundColor: colors.accent.primary,
     marginLeft: spacing.sm,
   },
-  sessionCount: {
-    fontSize: 13,
-    color: colors.text.secondary,
+  projectPath: {
+    fontSize: 11,
+    color: colors.text.tertiary,
     marginTop: 2,
+    opacity: 0.8,
+  },
+  sessionCount: {
+    fontSize: 12,
+    color: colors.text.secondary,
+    marginTop: 4,
   },
   sessionsList: {
     backgroundColor: colors.background.tertiary,

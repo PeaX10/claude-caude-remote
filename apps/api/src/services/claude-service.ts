@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { readdir, readFile, stat } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
+import { decodeProjectPath } from '../utils/path-decoder';
 
 const execAsync = promisify(exec);
 
@@ -306,14 +307,23 @@ export class ClaudeService extends EventEmitter {
           const files = await readdir(projectPath);
           const sessionCount = files.filter(f => f.endsWith('.jsonl')).length;
           
-          // Convert directory name back to path
-          const originalPath = project.replace(/-/g, '/');
+          // Use our smart decoder to find the real path
+          const realPath = decodeProjectPath(project);
           
-          projectList.push({
-            name: project.split('-').pop() || project,
-            path: originalPath,
-            sessions: sessionCount
-          });
+          // Only add projects that exist on the filesystem
+          if (realPath) {
+            // Extract a meaningful project name from the path
+            const pathParts = realPath.split('/');
+            const name = pathParts[pathParts.length - 1] || project;
+            
+            // Use encoded path as ID to ensure uniqueness
+            projectList.push({
+              name: name,
+              path: realPath,
+              encodedPath: project, // Keep original for uniqueness
+              sessions: sessionCount
+            });
+          }
         }
       }
       

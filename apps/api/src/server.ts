@@ -156,35 +156,14 @@ app.post('/git/command', async (req, res) => {
 })
 
 io.on('connection', async (socket) => {
-  console.log('🔌 Client connected:', socket.id, 'from', socket.handshake.address)
   const status = claude.getStatus()
-  console.log('📊 Sending initial status:', JSON.stringify(status))
   
-  // Make absolutely sure we're sending plain objects
   try {
     const safeStatus = JSON.parse(JSON.stringify(status))
     socket.emit('claude_status', safeStatus)
   } catch (error) {
-    console.error('❌ Failed to serialize status:', error)
     socket.emit('claude_status', { isRunning: false, pid: null, currentSessionId: null })
   }
-  
-  // Temporarily disable automatic session sending to debug
-  // setTimeout(async () => {
-  //   try {
-  //     const sessions = await claude.getSessions()
-  //     // Ensure we send serializable data
-  //     if (sessions && sessions.length > 0) {
-  //       const safeSessions = JSON.parse(JSON.stringify(sessions))
-  //       socket.emit('claude_sessions', safeSessions)
-  //     } else {
-  //       socket.emit('claude_sessions', [])
-  //     }
-  //   } catch (error) {
-  //     console.log('⚠️ Could not send sessions:', error)
-  //     socket.emit('claude_sessions', [])
-  //   }
-  // }, 500)
   
   const handleOutput = (message: ClaudeMessage) => socket.emit('claude_output', message)
   const handleError = (error: any) => socket.emit('claude_error', { 
@@ -224,7 +203,6 @@ io.on('connection', async (socket) => {
       const safe = JSON.parse(JSON.stringify(data))
       socket.emit(event, safe)
     } catch (error) {
-      console.error(`⚠️ Failed to emit ${event}:`, error, 'Data:', data)
       socket.emit(event, { error: 'Serialization error' })
     }
   }
@@ -266,16 +244,13 @@ io.on('connection', async (socket) => {
   
   socket.on('claude_start', async (data) => {
     try {
-      console.log('🚀 Starting Claude Code session with data:', JSON.stringify(data))
       const projectRoot = path.resolve(__dirname, '../../../')
       const sessionId = await claude.startSession({
         sessionId: data?.sessionId,
         projectPath: data?.projectPath || projectRoot
       })
       const status = claude.getStatus()
-      console.log('📊 Start result:', JSON.stringify({ sessionId, status }))
       
-      // Create a completely clean object
       const result = {
         sessionId: String(sessionId), 
         status: {
@@ -285,11 +260,9 @@ io.on('connection', async (socket) => {
         }
       }
       
-      // Double-check it's serializable
       const safeResult = JSON.parse(JSON.stringify(result))
       socket.emit('claude_start_result', safeResult)
     } catch (error: any) {
-      console.error('❌ Error starting Claude:', error)
       socket.emit('claude_error', { 
         type: 'error', 
         content: String(error.message || error),
@@ -299,7 +272,6 @@ io.on('connection', async (socket) => {
   })
   
   socket.on('claude_resume', async (data) => {
-    console.log('📂 Resuming Claude Code session...')
     const sessionId = await claude.startSession({
       sessionId: data.sessionId,
       projectPath: data?.projectPath
@@ -309,10 +281,8 @@ io.on('connection', async (socket) => {
   })
   
   socket.on('claude_message', async (data) => {
-    console.log('💬 Received message request:', data)
     if (data?.message) {
-      const success = await claude.sendMessage(data.message)
-      console.log('📤 Message sent to Claude:', success ? 'SUCCESS' : 'FAILED')
+      await claude.sendMessage(data.message)
     }
   })
 
@@ -326,10 +296,8 @@ io.on('connection', async (socket) => {
         last_used: Number(s.last_used || 0),
         cwd: String(s.cwd || '')
       }))
-      console.log('📋 Sending sessions:', JSON.stringify(safeSessions))
       socket.emit('claude_sessions', safeSessions)
     } catch (error) {
-      console.error('Error getting sessions:', error)
       socket.emit('claude_sessions', [])
     }
   })
@@ -337,12 +305,9 @@ io.on('connection', async (socket) => {
   socket.on('claude_get_commands', async () => {
     try {
       const commands = await claude.getAvailableCommands()
-      // Force simple array of strings
       const safeCommands = commands.map(c => String(c))
-      console.log('📋 Sending commands:', JSON.stringify(safeCommands))
       socket.emit('claude_commands', safeCommands)
     } catch (error) {
-      console.error('Error getting commands:', error)
       socket.emit('claude_commands', [])
     }
   })
@@ -355,10 +320,8 @@ io.on('connection', async (socket) => {
   socket.on('claude_get_projects', async () => {
     try {
       const projects = await claude.getProjects()
-      console.log('📂 Sending projects:', projects.length)
       socket.emit('claude_projects', projects)
     } catch (error) {
-      console.error('Error getting projects:', error)
       socket.emit('claude_projects', [])
     }
   })
@@ -366,35 +329,63 @@ io.on('connection', async (socket) => {
   socket.on('claude_get_project_sessions', async (data) => {
     try {
       const sessions = await claude.getProjectSessions(data.projectPath)
-      console.log('📋 Sending sessions for project:', sessions.length)
       socket.emit('claude_project_sessions', { projectPath: data.projectPath, sessions })
     } catch (error) {
-      console.error('Error getting project sessions:', error)
       socket.emit('claude_project_sessions', { projectPath: data.projectPath, sessions: [] })
     }
   })
 
   socket.on('file_list', async (data) => {
     try {
-      const filePath = data?.path || '.'
-      const fullPath = path.resolve(filePath)
-      const stats = await stat(fullPath)
+      const requestPath = data?.path || '/'
       
-      if (stats.isDirectory()) {
-        const files = await readdir(fullPath, { withFileTypes: true })
-        const result = await Promise.all(
-          files.map(async (file) => {
-            const fileStats = await stat(path.join(fullPath, file.name))
+      // Check if path exists
+      try {
+        const stats = await stat(requestPath)
+        
+        if (!stats.isDirectory()) {
+          socket.emit('file_error', { error: 'Path is not a directory' })
+          return
+        }
+      } catch (e) {
+        socket.emit('file_error', { error: `Path does not exist: ${requestPath}` })
+        return
+      }
+      
+      // Read directory contents
+      const files = await readdir(requestPath, { withFileTypes: true })
+      
+      // Filter out hidden files (optional)
+      const visibleFiles = files.filter(f => !f.name.startsWith('.'))
+      
+      const result = await Promise.all(
+        visibleFiles.map(async (file) => {
+          try {
+            const fullFilePath = path.join(requestPath, file.name)
+            const fileStats = await stat(fullFilePath)
             return {
               name: file.name,
               type: file.isDirectory() ? 'directory' : 'file',
-              path: path.join(filePath, file.name),
+              path: fullFilePath, // Return full absolute path
               size: file.isFile() ? fileStats.size : undefined
             }
-          })
-        )
-        socket.emit('file_list_result', { files: result, path: filePath })
-      }
+          } catch (e) {
+            // Skip files we can't stat
+            return null
+          }
+        })
+      )
+      
+      // Filter out nulls and sort (directories first, then alphabetically)
+      const sortedResult = result
+        .filter(f => f !== null)
+        .sort((a, b) => {
+          if (a.type === 'directory' && b.type === 'file') return -1
+          if (a.type === 'file' && b.type === 'directory') return 1
+          return a.name.localeCompare(b.name)
+        })
+      
+      socket.emit('file_list_result', { files: sortedResult, path: requestPath })
     } catch (error: any) {
       socket.emit('file_error', { error: error.message })
     }
@@ -423,10 +414,7 @@ io.on('connection', async (socket) => {
     }
   })
   
-  // Additional cleanup on disconnect
-  socket.on('disconnect', () => {
-    console.log('🔌 Client disconnected:', socket.id)
-  })
+  socket.on('disconnect', () => {})
 })
 
 server.listen(PORT, () => {

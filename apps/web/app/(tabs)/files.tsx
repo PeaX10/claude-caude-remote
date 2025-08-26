@@ -6,9 +6,6 @@ import {
   ScrollView, 
   StyleSheet, 
   SafeAreaView,
-  Alert,
-  Modal,
-  TextInput,
   ActivityIndicator
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
@@ -23,40 +20,143 @@ interface FileItem {
   size?: number
   children?: FileItem[]
   isExpanded?: boolean
+  isLoading?: boolean
 }
 
 export default function FilesScreen() {
-  const [currentPath, setCurrentPath] = useState('/')
-  const [files] = useState<FileItem[]>([])
+  const { activeProjectPath } = useStore()
+  const [currentPath, setCurrentPath] = useState('')
+  const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [createType, setCreateType] = useState<'file' | 'folder'>('file')
-  const [newItemName, setNewItemName] = useState('')
+  const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set())
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null)
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
+  const [fileContent, setFileContent] = useState<string>('')
 
-  const { isConnected, loadFiles, readFile } = useWebSocket()
-  const { isClaudeRunning } = useStore()
+  const { isConnected, loadFiles, readFile, socket } = useWebSocket()
 
   useEffect(() => {
-    if (isConnected && isClaudeRunning) {
-      loadFilesData(currentPath)
+    if (isConnected && activeProjectPath) {
+      setCurrentPath(activeProjectPath)
+      setFiles([])
+      setExpandedDirs(new Set())
+      loadFilesData(activeProjectPath)
+    } else if (!activeProjectPath) {
+      setCurrentPath('')
+      setFiles([])
+      setExpandedDirs(new Set())
     }
-  }, [isConnected, isClaudeRunning, currentPath])
+  }, [isConnected, activeProjectPath])
 
-  const loadFilesData = async (path: string) => {
-    setLoading(true)
+  useEffect(() => {
+    if (!socket) return
+
+    const handleFileList = (data: { files: FileItem[], path: string }) => {
+      setLoadingPaths(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(data.path)
+        return newSet
+      })
+      
+      if (data.path === activeProjectPath) {
+        setFiles(data.files || [])
+        setLoading(false)
+      } else {
+        setFiles(prevFiles => {
+          const updateChildren = (items: FileItem[]): FileItem[] => {
+            return items.map(item => {
+              if (item.path === data.path) {
+                return {
+                  ...item,
+                  children: data.files || [],
+                  isLoading: false
+                }
+              } else if (item.children) {
+                return {
+                  ...item,
+                  children: updateChildren(item.children)
+                }
+              }
+              return item
+            })
+          }
+          
+          return updateChildren(prevFiles)
+        })
+      }
+    }
+
+    const handleFileContent = (data: { content: string, path: string }) => {
+      setFileContent(data.content || '')
+    }
+
+    const handleFileError = (data: { error: string }) => {
+      setLoading(false)
+      setLoadingPaths(new Set())
+      setFiles(prevFiles => {
+        const clearLoading = (items: FileItem[]): FileItem[] => {
+          return items.map(item => ({
+            ...item,
+            isLoading: false,
+            children: item.children ? clearLoading(item.children) : item.children
+          }))
+        }
+        return clearLoading(prevFiles)
+      })
+    }
+
+    socket.on('file_list_result', handleFileList)
+    socket.on('file_content', handleFileContent)
+    socket.on('file_error', handleFileError)
+
+    return () => {
+      socket.off('file_list_result', handleFileList)
+      socket.off('file_content', handleFileContent)
+      socket.off('file_error', handleFileError)
+    }
+  }, [socket, activeProjectPath])
+
+  const loadFilesData = (path: string) => {
+    if (!isConnected) return
+    
+    if (loadingPaths.has(path)) return
+    
+    setLoadingPaths(prev => new Set([...prev, path]))
+    
+    if (path === activeProjectPath) {
+      setLoading(true)
+    }
+    
     loadFiles(path)
   }
 
   const toggleDirectory = (dir: FileItem) => {
     const newExpanded = new Set(expandedDirs)
+    
     if (expandedDirs.has(dir.path)) {
       newExpanded.delete(dir.path)
     } else {
       newExpanded.add(dir.path)
-      loadFilesData(dir.path)
+      
+      if (!dir.children) {
+        setFiles(prevFiles => {
+          const setLoadingState = (items: FileItem[]): FileItem[] => {
+            return items.map(item => {
+              if (item.path === dir.path) {
+                return { ...item, isLoading: true }
+              } else if (item.children) {
+                return { ...item, children: setLoadingState(item.children) }
+              }
+              return item
+            })
+          }
+          return setLoadingState(prevFiles)
+        })
+        
+        loadFilesData(dir.path)
+      }
     }
+    
     setExpandedDirs(newExpanded)
   }
 
@@ -69,47 +169,10 @@ export default function FilesScreen() {
     }
   }
 
-  const handleCreateItem = () => {
-    if (!newItemName.trim()) return
-    
-    const newPath = `${currentPath}/${newItemName}`
-    if (createType === 'file') {
-      sendMessage(`touch "${newPath}"`)
-    } else {
-      sendMessage(`mkdir "${newPath}"`)
-    }
-    
-    setNewItemName('')
-    setShowCreateModal(false)
-    setTimeout(() => loadFilesData(currentPath), 100)
-  }
-
-  const handleDeleteFile = (file: FileItem) => {
-    Alert.alert(
-      'Delete File',
-      `Are you sure you want to delete "${file.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            sendMessage(`rm "${file.path}"`)
-            setTimeout(() => loadFilesData(currentPath), 100)
-          }
-        }
-      ]
-    )
-  }
-
-  const navigateUp = () => {
-    const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/'
-    setCurrentPath(parentPath)
-  }
 
   const FileIcon = ({ type }: { type: 'file' | 'directory' }) => (
     type === 'directory' ? (
-      <Feather name="folder" size={16} color={colors.text.accent} style={styles.fileIcon} />
+      <Feather name="folder" size={16} color={colors.accent.primary} style={styles.fileIcon} />
     ) : (
       <Feather name="file-text" size={16} color={colors.text.secondary} style={styles.fileIcon} />
     )
@@ -118,9 +181,8 @@ export default function FilesScreen() {
   const renderFileItem = (file: FileItem, depth = 0) => (
     <View key={file.path}>
       <TouchableOpacity
-        style={[styles.fileItem, { paddingLeft: 16 + depth * 20 }]}
+        style={[styles.fileItem, { paddingLeft: 16 + depth * 24 }]}
         onPress={() => handleFilePress(file)}
-        onLongPress={() => file.type === 'file' && handleDeleteFile(file)}
       >
         <View style={styles.fileInfo}>
           <FileIcon type={file.type} />
@@ -134,17 +196,32 @@ export default function FilesScreen() {
           </View>
         </View>
         {file.type === 'directory' && (
-          <Feather 
-            name={expandedDirs.has(file.path) ? 'chevron-down' : 'chevron-right'} 
-            size={14} 
-            color={colors.text.secondary}
-          />
+          file.isLoading ? (
+            <ActivityIndicator size="small" color={colors.accent.primary} />
+          ) : (
+            <Feather 
+              name={expandedDirs.has(file.path) ? 'chevron-down' : 'chevron-right'} 
+              size={14} 
+              color={colors.text.secondary}
+            />
+          )
         )}
       </TouchableOpacity>
       
-      {file.type === 'directory' && expandedDirs.has(file.path) && file.children && (
+      {file.type === 'directory' && expandedDirs.has(file.path) && (
         <View style={styles.childrenContainer}>
-          {file.children.map(child => renderFileItem(child, depth + 1))}
+          {file.isLoading ? (
+            <View style={[styles.loadingItem, { paddingLeft: 40 + depth * 24 }]}>
+              <ActivityIndicator size="small" color={colors.text.tertiary} />
+              <Text style={styles.loadingText}>Loading...</Text>
+            </View>
+          ) : file.children && file.children.length > 0 ? (
+            file.children.map(child => renderFileItem(child, depth + 1))
+          ) : file.children && file.children.length === 0 ? (
+            <Text style={[styles.emptyDirectory, { paddingLeft: 40 + depth * 24 }]}>
+              Empty directory
+            </Text>
+          ) : null}
         </View>
       )}
     </View>
@@ -154,21 +231,12 @@ export default function FilesScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.pathContainer}>
-          {currentPath !== '/' && (
-            <TouchableOpacity style={styles.backButton} onPress={navigateUp}>
-              <Feather name="arrow-left" size={18} color={colors.text.accent} />
-            </TouchableOpacity>
-          )}
-          <Text style={styles.currentPath}>{currentPath}</Text>
+          <Feather name="git-branch" size={18} color={colors.accent.primary} style={{ marginRight: 8 }} />
+          <Text style={styles.currentPath}>
+            {!activeProjectPath ? 'No project selected' : 
+             activeProjectPath.split('/').pop() || 'Project Files'}
+          </Text>
         </View>
-        
-        <TouchableOpacity 
-          style={styles.createButton}
-          onPress={() => setShowCreateModal(true)}
-          disabled={!isConnected || !isClaudeRunning}
-        >
-          <Feather name="plus" size={16} color={colors.text.accent} />
-        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -178,73 +246,24 @@ export default function FilesScreen() {
         </View>
       ) : (
         <ScrollView style={styles.filesList} showsVerticalScrollIndicator={false}>
-          {!isConnected || !isClaudeRunning ? (
+          {!isConnected ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>Files Explorer</Text>
+              <Text style={styles.emptySubtitle}>Connect to server first</Text>
+            </View>
+          ) : files.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No files</Text>
               <Text style={styles.emptySubtitle}>
-                {!isConnected ? 'Connect to server first' : 'Start Claude Code to browse files'}
+                {!activeProjectPath ? 'Select a project from the sidebar' : 'This directory is empty'}
               </Text>
-              {selectedFile && (
-                <Text style={styles.emptySubtitle}>Selected: {selectedFile.name}</Text>
-              )}
             </View>
           ) : (
-            files.map(file => renderFileItem(file))
+            // Tree view: show all files with indentation
+            files.map(file => renderFileItem(file, 0))
           )}
         </ScrollView>
       )}
-
-      <Modal
-        visible={showCreateModal}
-        transparent
-        animationType="slide"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Create New</Text>
-            
-            <View style={styles.typeSelector}>
-              <TouchableOpacity
-                style={[styles.typeButton, createType === 'file' && styles.selectedType]}
-                onPress={() => setCreateType('file')}
-              >
-                <Text style={styles.typeButtonText}>File</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.typeButton, createType === 'folder' && styles.selectedType]}
-                onPress={() => setCreateType('folder')}
-              >
-                <Text style={styles.typeButtonText}>Folder</Text>
-              </TouchableOpacity>
-            </View>
-
-            <TextInput
-              style={styles.nameInput}
-              value={newItemName}
-              onChangeText={setNewItemName}
-              placeholder={`${createType} name`}
-              placeholderTextColor={colors.text.tertiary}
-              autoFocus
-            />
-            
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalButton}
-                onPress={() => setShowCreateModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.createModalButton]}
-                onPress={handleCreateItem}
-                disabled={!newItemName.trim()}
-              >
-                <Text style={styles.createModalButtonText}>Create</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   )
 }
@@ -268,24 +287,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  backButton: {
-    marginRight: spacing.md,
-    padding: spacing.xs,
-  },
   currentPath: {
     color: colors.text.primary,
     fontSize: 16,
     fontWeight: '500',
-  },
-  createButton: {
-    backgroundColor: colors.background.secondary,
-    width: 36,
-    height: 36,
-    borderRadius: 6,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -353,80 +358,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: colors.surface.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: colors.background.elevated,
-    borderRadius: 12,
-    padding: spacing.xl,
-    width: '80%',
-    borderWidth: 1,
-    borderColor: colors.border.primary,
-  },
-  modalTitle: {
-    color: colors.text.primary,
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: spacing.lg,
-    textAlign: 'center',
-  },
-  typeSelector: {
+  loadingItem: {
     flexDirection: 'row',
-    marginBottom: spacing.lg,
-    backgroundColor: colors.background.secondary,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border.primary,
-  },
-  typeButton: {
-    flex: 1,
-    padding: spacing.md,
     alignItems: 'center',
-    borderRadius: 6,
+    paddingVertical: spacing.sm,
   },
-  selectedType: {
-    backgroundColor: colors.accent.primary,
+  loadingText: {
+    color: colors.text.tertiary,
+    fontSize: 13,
+    marginLeft: spacing.sm,
+    fontStyle: 'italic',
   },
-  typeButtonText: {
-    color: colors.text.primary,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  nameInput: {
-    backgroundColor: colors.surface.input,
-    color: colors.text.primary,
-    padding: spacing.md,
-    borderRadius: 6,
-    marginBottom: spacing.lg,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: colors.border.primary,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing.md,
-  },
-  modalButton: {
-    flex: 1,
-    padding: spacing.md,
-    alignItems: 'center',
-    borderRadius: 6,
-  },
-  createModalButton: {
-    backgroundColor: colors.accent.primary,
-  },
-  createModalButtonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  cancelButtonText: {
-    color: colors.text.secondary,
-    fontSize: 15,
+  emptyDirectory: {
+    color: colors.text.tertiary,
+    fontSize: 13,
+    paddingVertical: spacing.sm,
+    fontStyle: 'italic',
   },
 })

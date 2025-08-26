@@ -21,7 +21,7 @@ export function BurgerMenu({ isOpen, onPress }: BurgerMenuProps) {
         duration: 300,
         useNativeDriver: true,
       }),
-      // Middle bar fade
+      // Middle bar fadela vue 
       Animated.timing(middleBarAnim, {
         toValue: isOpen ? 0 : 1,
         duration: 200,
@@ -77,7 +77,7 @@ export function BurgerMenu({ isOpen, onPress }: BurgerMenuProps) {
   }
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.container}
       onPress={onPress}
       activeOpacity={0.7}
