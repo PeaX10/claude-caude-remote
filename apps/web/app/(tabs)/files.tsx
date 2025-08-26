@@ -35,7 +35,7 @@ export default function FilesScreen() {
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null)
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set())
 
-  const { isConnected, sendMessage, loadFiles, readFile } = useWebSocket()
+  const { isConnected, loadFiles, readFile } = useWebSocket()
   const { isClaudeRunning } = useStore()
 
   useEffect(() => {

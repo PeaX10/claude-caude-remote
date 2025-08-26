@@ -158,28 +158,33 @@ app.post('/git/command', async (req, res) => {
 io.on('connection', async (socket) => {
   console.log('🔌 Client connected:', socket.id, 'from', socket.handshake.address)
   const status = claude.getStatus()
-  console.log('📊 Sending initial status:', status)
-  socket.emit('claude_status', status)
+  console.log('📊 Sending initial status:', JSON.stringify(status))
   
-  if (status.isRunning) {
-    try {
-      const result = await execAsync(`tmux capture-pane -t ${claude.tmuxSession} -S -3000 -p`)
-      const fullOutput = result.stdout
-      
-      if (fullOutput.trim()) {
-        console.log('📋 Sending full conversation history to new client')
-        const filtered = claude.filterClaudeOutput(fullOutput)
-        socket.emit('claude_output', {
-          type: 'output',
-          content: filtered.content,
-          contextPercent: filtered.contextPercent,
-          timestamp: Date.now()
-        })
-      }
-    } catch (error) {
-      console.log('❌ Error getting full history for new client:', error)
-    }
+  // Make absolutely sure we're sending plain objects
+  try {
+    const safeStatus = JSON.parse(JSON.stringify(status))
+    socket.emit('claude_status', safeStatus)
+  } catch (error) {
+    console.error('❌ Failed to serialize status:', error)
+    socket.emit('claude_status', { isRunning: false, pid: null, currentSessionId: null })
   }
+  
+  // Temporarily disable automatic session sending to debug
+  // setTimeout(async () => {
+  //   try {
+  //     const sessions = await claude.getSessions()
+  //     // Ensure we send serializable data
+  //     if (sessions && sessions.length > 0) {
+  //       const safeSessions = JSON.parse(JSON.stringify(sessions))
+  //       socket.emit('claude_sessions', safeSessions)
+  //     } else {
+  //       socket.emit('claude_sessions', [])
+  //     }
+  //   } catch (error) {
+  //     console.log('⚠️ Could not send sessions:', error)
+  //     socket.emit('claude_sessions', [])
+  //   }
+  // }, 500)
   
   const handleOutput = (message: ClaudeMessage) => socket.emit('claude_output', message)
   const handleError = (error: any) => socket.emit('claude_error', { 
@@ -187,61 +192,185 @@ io.on('connection', async (socket) => {
     content: typeof error === 'string' ? error : error.message,
     timestamp: Date.now() 
   })
-  const handleStatus = (status: string) => socket.emit('claude_status_update', { 
-    type: 'status', 
-    content: status, 
-    timestamp: Date.now(),
-    status: claude.getStatus()
-  })
-  const handleHistory = (message: ClaudeMessage) => socket.emit('claude_output', message)
-  const handleContext = (data: { contextPercent: number, timestamp: number }) => {
-    socket.emit('claude_context', data)
+  const handleStatus = (status: string) => {
+    const currentStatus = claude.getStatus()
+    safeEmit('claude_status_update', { 
+      type: 'status', 
+      content: status, 
+      timestamp: Date.now(),
+      status: {
+        isRunning: currentStatus.isRunning,
+        pid: currentStatus.pid,
+        currentSessionId: currentStatus.currentSessionId
+      }
+    })
   }
+  // Ensure all data sent through socket is serializable
+  const safeEmit = (event: string, data: any) => {
+    try {
+      // Handle different types of data
+      if (data === null || data === undefined) {
+        socket.emit(event, data)
+        return
+      }
+      
+      // For primitives, send as-is
+      if (typeof data !== 'object') {
+        socket.emit(event, data)
+        return
+      }
+      
+      // For objects, ensure they're serializable
+      const safe = JSON.parse(JSON.stringify(data))
+      socket.emit(event, safe)
+    } catch (error) {
+      console.error(`⚠️ Failed to emit ${event}:`, error, 'Data:', data)
+      socket.emit(event, { error: 'Serialization error' })
+    }
+  }
+  
+  const handleSession = (data: any) => safeEmit('claude_session', data)
+  const handleSystem = (data: any) => safeEmit('claude_system', data)
+  const handleAssistant = (data: any) => safeEmit('claude_assistant', data)
+  const handleUser = (data: any) => safeEmit('claude_user', data)
+  const handleToolUse = (data: any) => safeEmit('claude_tool_use', data)
+  const handleToolResult = (data: any) => safeEmit('claude_tool_result', data)
+  const handleRaw = (data: any) => safeEmit('claude_raw', data)
+  const handleContext = (data: any) => safeEmit('claude_context', data)
   
   claude.on('output', handleOutput)
   claude.on('error', handleError)
   claude.on('status', handleStatus)
-  claude.on('history', handleHistory)
+  claude.on('session', handleSession)
+  claude.on('system', handleSystem)
+  claude.on('assistant', handleAssistant)
+  claude.on('user', handleUser)
+  claude.on('tool_use', handleToolUse)
+  claude.on('tool_result', handleToolResult)
+  claude.on('raw', handleRaw)
   claude.on('context', handleContext)
   
   socket.on('disconnect', () => {
     claude.off('output', handleOutput)
     claude.off('error', handleError)
     claude.off('status', handleStatus)
-    claude.off('history', handleHistory)
+    claude.off('session', handleSession)
+    claude.off('system', handleSystem)
+    claude.off('assistant', handleAssistant)
+    claude.off('user', handleUser)
+    claude.off('tool_use', handleToolUse)
+    claude.off('tool_result', handleToolResult)
+    claude.off('raw', handleRaw)
     claude.off('context', handleContext)
   })
   
   socket.on('claude_start', async (data) => {
-    console.log('🚀 Starting Claude Code...')
-    const projectRoot = path.resolve(__dirname, '../../../')
-    const success = await claude.start(data?.projectPath || projectRoot)
+    try {
+      console.log('🚀 Starting Claude Code session with data:', JSON.stringify(data))
+      const projectRoot = path.resolve(__dirname, '../../../')
+      const sessionId = await claude.startSession({
+        sessionId: data?.sessionId,
+        projectPath: data?.projectPath || projectRoot
+      })
+      const status = claude.getStatus()
+      console.log('📊 Start result:', JSON.stringify({ sessionId, status }))
+      
+      // Create a completely clean object
+      const result = {
+        sessionId: String(sessionId), 
+        status: {
+          isRunning: Boolean(status.isRunning),
+          pid: status.pid ? Number(status.pid) : null,
+          currentSessionId: status.currentSessionId ? String(status.currentSessionId) : null
+        }
+      }
+      
+      // Double-check it's serializable
+      const safeResult = JSON.parse(JSON.stringify(result))
+      socket.emit('claude_start_result', safeResult)
+    } catch (error: any) {
+      console.error('❌ Error starting Claude:', error)
+      socket.emit('claude_error', { 
+        type: 'error', 
+        content: String(error.message || error),
+        timestamp: Date.now() 
+      })
+    }
+  })
+  
+  socket.on('claude_resume', async (data) => {
+    console.log('📂 Resuming Claude Code session...')
+    const sessionId = await claude.startSession({
+      sessionId: data.sessionId,
+      projectPath: data?.projectPath
+    })
     const status = claude.getStatus()
-    console.log('📊 Start result:', { success, status })
-    socket.emit('claude_start_result', { success, status })
+    socket.emit('claude_resume_result', { sessionId, status })
   })
   
   socket.on('claude_message', async (data) => {
-    if (data?.message) await claude.sendMessage(data.message)
+    console.log('💬 Received message request:', data)
+    if (data?.message) {
+      const success = await claude.sendMessage(data.message)
+      console.log('📤 Message sent to Claude:', success ? 'SUCCESS' : 'FAILED')
+    }
   })
 
-  socket.on('claude_full_output', async () => {
+  socket.on('claude_get_sessions', async () => {
     try {
-      const result = await execAsync(`tmux capture-pane -t ${claude.tmuxSession} -S -3000 -p`)
-      const fullOutput = result.stdout
-      
-      const filtered = claude.filterClaudeOutput(fullOutput)
-      if (filtered.content) {
-        console.log('📋 Sending full history via refresh button')
-        socket.emit('claude_output', {
-          type: 'output',
-          content: filtered.content,
-          contextPercent: filtered.contextPercent,
-          timestamp: Date.now()
-        })
-      }
+      const sessions = await claude.getSessions()
+      // Force simple array of plain objects
+      const safeSessions = sessions.map(s => ({
+        id: String(s.id || ''),
+        created_at: Number(s.created_at || 0),
+        last_used: Number(s.last_used || 0),
+        cwd: String(s.cwd || '')
+      }))
+      console.log('📋 Sending sessions:', JSON.stringify(safeSessions))
+      socket.emit('claude_sessions', safeSessions)
     } catch (error) {
-      console.log('❌ Error getting full output:', error)
+      console.error('Error getting sessions:', error)
+      socket.emit('claude_sessions', [])
+    }
+  })
+  
+  socket.on('claude_get_commands', async () => {
+    try {
+      const commands = await claude.getAvailableCommands()
+      // Force simple array of strings
+      const safeCommands = commands.map(c => String(c))
+      console.log('📋 Sending commands:', JSON.stringify(safeCommands))
+      socket.emit('claude_commands', safeCommands)
+    } catch (error) {
+      console.error('Error getting commands:', error)
+      socket.emit('claude_commands', [])
+    }
+  })
+  
+  socket.on('claude_interrupt', async () => {
+    const success = await claude.interrupt()
+    socket.emit('claude_interrupt_result', { success })
+  })
+  
+  socket.on('claude_get_projects', async () => {
+    try {
+      const projects = await claude.getProjects()
+      console.log('📂 Sending projects:', projects.length)
+      socket.emit('claude_projects', projects)
+    } catch (error) {
+      console.error('Error getting projects:', error)
+      socket.emit('claude_projects', [])
+    }
+  })
+  
+  socket.on('claude_get_project_sessions', async (data) => {
+    try {
+      const sessions = await claude.getProjectSessions(data.projectPath)
+      console.log('📋 Sending sessions for project:', sessions.length)
+      socket.emit('claude_project_sessions', { projectPath: data.projectPath, sessions })
+    } catch (error) {
+      console.error('Error getting project sessions:', error)
+      socket.emit('claude_project_sessions', { projectPath: data.projectPath, sessions: [] })
     }
   })
 
@@ -294,11 +423,9 @@ io.on('connection', async (socket) => {
     }
   })
   
+  // Additional cleanup on disconnect
   socket.on('disconnect', () => {
     console.log('🔌 Client disconnected:', socket.id)
-    claude.removeListener('output', handleOutput)
-    claude.removeListener('error', handleError)  
-    claude.removeListener('status', handleStatus)
   })
 })
 

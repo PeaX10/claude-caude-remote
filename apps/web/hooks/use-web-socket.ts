@@ -1,195 +1,100 @@
 import { useEffect, useState } from 'react'
 import { io, Socket } from 'socket.io-client'
 
-interface ClaudeMessage {
-  type: 'output' | 'error' | 'command' | 'status'
-  content: string
-  timestamp: number
-  contextPercent?: number
-}
-
 interface ClaudeStatus {
   isRunning: boolean
   pid: number | null
+  currentSessionId: string | null
 }
 
 export function useWebSocket(serverUrl: string = 'http://127.0.0.1:9876') {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
-  const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus>({ isRunning: false, pid: null })
-  const [messages, setMessages] = useState<ClaudeMessage[]>([])
-  const [contextPercent, setContextPercent] = useState<number | null>(null)
-  const [lastFullContent, setLastFullContent] = useState<string>('')
-
-  const getDiffContent = (newContent: string): string => {
-    if (!lastFullContent) {
-      return newContent
-    }
-    
-    if (newContent.startsWith(lastFullContent)) {
-      const diff = newContent.substring(lastFullContent.length).trim()
-      return diff
-    }
-    
-    if (!newContent.includes(lastFullContent.substring(0, 100))) {
-      return newContent
-    }
-    
-    const oldParagraphs = lastFullContent.split('\n\n')
-    const newParagraphs = newContent.split('\n\n')
-    
-    let diffIndex = oldParagraphs.length
-    for (let i = 0; i < Math.min(oldParagraphs.length, newParagraphs.length); i++) {
-      if (oldParagraphs[i] !== newParagraphs[i]) {
-        diffIndex = i
-        break
-      }
-    }
-    
-    return newParagraphs.slice(diffIndex).join('\n\n').trim()
-  }
+  const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus>({ 
+    isRunning: false, 
+    pid: null,
+    currentSessionId: null 
+  })
+  const [messages, setMessages] = useState<any[]>([])
 
   useEffect(() => {
-    console.log('🔗 Attempting to connect to:', serverUrl)
+    console.log('🔗 Connecting to:', serverUrl)
     const newSocket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 20000,
     })
+    
+    // Store socket in state WITHOUT returning it from hook
     setSocket(newSocket)
 
     newSocket.on('connect', () => {
-      console.log('✅ Connected to server:', serverUrl)
+      console.log('✅ Connected')
       setIsConnected(true)
-      
-      setTimeout(() => {
-        newSocket.emit('claude_full_output')
-      }, 1000)
     })
 
     newSocket.on('disconnect', () => {
-      console.log('❌ Disconnected from server')
+      console.log('❌ Disconnected')
       setIsConnected(false)
     })
 
-    newSocket.on('connect_error', (error) => {
-      console.error('🚫 Connection error:', error.message)
-    })
-
-    newSocket.on('claude_status', (status: ClaudeStatus) => {
-      console.log('📊 Claude status received:', status)
-      setClaudeStatus(status)
-      
-      if (!status.isRunning) {
-        console.log('🚀 Auto-starting Claude Code...')
-        setTimeout(() => {
-          newSocket.emit('claude_start', {})
-        }, 1000)
+    newSocket.on('claude_status', (status: any) => {
+      console.log('📊 Status:', status)
+      // Create a clean copy of status
+      const cleanStatus = {
+        isRunning: Boolean(status?.isRunning),
+        pid: status?.pid || null,
+        currentSessionId: status?.currentSessionId || null
       }
+      setClaudeStatus(cleanStatus)
     })
 
-    newSocket.on('claude_output', (message: ClaudeMessage) => {
-      console.log('📨 Received full content, calculating diff...')
-      
-      const diffContent = getDiffContent(message.content)
-      
-      if (diffContent) {
-        console.log('📨 Adding new content:', diffContent.slice(0, 100) + '...')
+    newSocket.on('claude_commands', (commands: string[]) => {
+      console.log('📋 Commands:', commands?.length || 0)
+      // Don't store commands if they cause issues
+    })
+
+    newSocket.on('claude_output', (message: any) => {
+      console.log('📨 Output received')
+      // Store only the content, not the full message object
+      if (message?.content) {
         setMessages(prev => [...prev, {
-          id: Date.now().toString(),
-          type: message.type === 'output' ? 'claude' : 'system',
-          content: diffContent,
-          timestamp: message.timestamp
+          content: String(message.content),
+          timestamp: Date.now()
         }])
-      } else {
-        console.log('📨 No new content to display')
       }
-      
-      setLastFullContent(message.content)
-      
-      if (message.contextPercent !== undefined) {
-        setContextPercent(message.contextPercent)
-      }
-    })
-
-    newSocket.on('claude_error', (message: ClaudeMessage) => {
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        type: 'system',
-        content: message.content,
-        timestamp: message.timestamp
-      }])
-    })
-
-    newSocket.on('claude_status_update', (update: any) => {
-      setClaudeStatus(update.status)
-      setMessages(prev => [...prev, {
-        type: 'status',
-        content: update.content,
-        timestamp: update.timestamp
-      }])
-    })
-
-    newSocket.on('claude_start_result', (result: { success: boolean, status: ClaudeStatus }) => {
-      console.log('🚀 Claude start result:', result)
-      setClaudeStatus(result.status)
-    })
-
-    newSocket.on('claude_context', (data: { contextPercent: number, timestamp: number }) => {
-      console.log('📊 Context update:', data.contextPercent + '%')
-      setContextPercent(data.contextPercent)
     })
 
     return () => {
+      console.log('🧹 Cleaning up socket')
       newSocket.close()
     }
   }, [serverUrl])
 
-  const startClaude = (projectPath?: string) => {
-    setLastFullContent('')
-    setMessages([])
-    socket?.emit('claude_start', { projectPath })
-  }
-
-  const getFullOutput = () => {
-    setLastFullContent('')
-    setMessages([])
-    socket?.emit('claude_full_output')
-  }
-
   const sendMessage = (message: string) => {
     if (socket && socket.connected) {
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        type: 'user',
-        content: message,
-        timestamp: Date.now()
-      }])
-      socket.emit('claude_message', { message })
+      console.log('📤 Sending:', message)
+      socket.emit('claude_message', { message: String(message) })
     }
   }
 
-  const loadFiles = (path: string) => {
-    socket?.emit('file_list', { path })
-  }
-
-  const readFile = (path: string) => {
-    socket?.emit('file_read', { path })
-  }
-
-  const runGitCommand = (command: string) => {
-    socket?.emit('git_command', { command })
+  const startClaude = () => {
+    if (socket && socket.connected) {
+      console.log('🚀 Starting Claude')
+      socket.emit('claude_start', {})
+    }
   }
 
   return {
     isConnected,
     claudeStatus,
     messages,
-    contextPercent,
-    startClaude,
     sendMessage,
-    getFullOutput,
-    loadFiles,
-    readFile,
-    runGitCommand
+    startClaude,
+    contextPercent: null,
+    getFullOutput: () => {},
+    loadFiles: () => {},
+    readFile: () => {},
+    runGitCommand: () => {},
+    socket // Return socket for sidebar
   }
 }

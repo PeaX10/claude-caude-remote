@@ -2,10 +2,8 @@ import { View, Text, Animated } from 'react-native'
 import { colors, spacing } from '../theme/colors'
 
 interface Message {
-  id: string
-  type: 'user' | 'claude' | 'system'
+  role: 'user' | 'assistant'
   content: string
-  timestamp: number
 }
 
 interface MessageBubbleProps {
@@ -43,8 +41,7 @@ const createMessageStyles = () => ({
 
 export function MessageBubble({ message, fadeAnim, slideAnim }: MessageBubbleProps) {
   const styles = createMessageStyles()
-  const isUser = message.type === 'user'
-  const isSystem = message.type === 'system'
+  const isUser = message.role === 'user'
   
   return (
     <Animated.View 
@@ -55,7 +52,7 @@ export function MessageBubble({ message, fadeAnim, slideAnim }: MessageBubblePro
     >
       <View style={styles.messageContainer}>
         <Text style={[styles.messageRole, isUser ? styles.userRole : styles.claudeRole]}>
-          {isUser ? 'You' : isSystem ? 'System' : 'Claude'}
+          {isUser ? 'You' : 'Claude'}
         </Text>
         <Text style={styles.messageContent}>
           {message.content}

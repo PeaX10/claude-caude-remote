@@ -1,11 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { View, ScrollView, TouchableOpacity, Text, KeyboardAvoidingView, Platform, Animated } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
 import { colors, spacing } from '../../theme/colors'
 import { useWebSocket } from '../../hooks/use-web-socket'
 import { useStore } from '../../store'
 import { useScrollHandler } from '../../hooks/use-scroll-handler'
-import { ChatHeader } from '../../components/chat-header'
 import { EmptyState } from '../../components/empty-state'
 import { MessageBubble } from '../../components/message-bubble'
 import { MessageInput } from '../../components/message-input'
@@ -59,9 +57,7 @@ export default function ChatScreen() {
     claudeStatus, 
     messages, 
     sendMessage, 
-    startClaude, 
-    getFullOutput, 
-    contextPercent 
+    startClaude
   } = useWebSocket()
   
   const { 
@@ -106,80 +102,64 @@ export default function ChatScreen() {
     setInputText('')
   }
 
-  const handleRefresh = () => {
-    console.log('🔄 Manual refresh requested')
-    getFullOutput()
-  }
-
   const showScrollButton = !isAtBottom && contentHeight > scrollViewHeight + 100
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <ChatHeader
-          contextPercent={contextPercent}
-          isConnected={isConnected}
-          claudeIsRunning={claudeStatus.isRunning}
-          onRefresh={handleRefresh}
-        />
-
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <View style={styles.messagesContainer}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.messagesContent}
+          onScroll={checkIfAtBottom}
+          scrollEventThrottle={16}
+          onLayout={handleLayout}
+          onContentSizeChange={handleContentSizeChange}
+          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.messagesContainer}>
-            <ScrollView
-              ref={scrollViewRef}
-              style={{ flex: 1 }}
-              contentContainerStyle={styles.messagesContent}
-              onScroll={checkIfAtBottom}
-              scrollEventThrottle={16}
-              onLayout={handleLayout}
-              onContentSizeChange={handleContentSizeChange}
-              showsVerticalScrollIndicator={false}
-            >
-              {messages.length === 0 ? (
-                <EmptyState
-                  isConnected={isConnected}
-                  claudeIsRunning={claudeStatus.isRunning}
-                  onStartClaude={startClaude}
-                  fadeAnim={fadeAnim}
-                  slideAnim={slideAnim}
-                />
-              ) : (
-                messages.map((message) => (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    fadeAnim={fadeAnim}
-                    slideAnim={slideAnim}
-                  />
-                ))
-              )}
-              
-              {isTyping && <TypingIndicator />}
-            </ScrollView>
+          {messages.length === 0 ? (
+            <EmptyState
+              isConnected={isConnected}
+              claudeIsRunning={claudeStatus.isRunning}
+              onStartClaude={startClaude}
+              fadeAnim={fadeAnim}
+              slideAnim={slideAnim}
+            />
+          ) : (
+            messages.map((message, index) => (
+              <MessageBubble
+                key={index}
+                message={message}
+                fadeAnim={fadeAnim}
+                slideAnim={slideAnim}
+              />
+            ))
+          )}
+          
+          {isTyping && <TypingIndicator />}
+        </ScrollView>
 
-            {showScrollButton && (
-              <TouchableOpacity
-                style={styles.scrollToBottomButton}
-                onPress={() => scrollToBottom()}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.scrollIcon}>↓</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+        {showScrollButton && (
+          <TouchableOpacity
+            style={styles.scrollToBottomButton}
+            onPress={() => scrollToBottom()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.scrollIcon}>↓</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
-          <MessageInput
-            inputText={inputText}
-            onChangeText={setInputText}
-            onSend={handleSend}
-            isConnected={isConnected}
-          />
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </View>
+      <MessageInput
+        inputText={inputText}
+        onChangeText={setInputText}
+        onSend={handleSend}
+        isConnected={isConnected}
+      />
+    </KeyboardAvoidingView>
   )
 }

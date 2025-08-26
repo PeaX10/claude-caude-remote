@@ -1,10 +1,12 @@
 import { Tabs } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { colors } from '../../theme/colors'
+import { AppLayout } from '../../components/app-layout'
 
 export default function TabsLayout() {
   return (
-    <Tabs screenOptions={{ 
+    <AppLayout>
+      <Tabs screenOptions={{ 
       headerShown: false,
       tabBarStyle: { 
         backgroundColor: colors.background.secondary,
@@ -52,6 +54,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => <Feather name="settings" size={20} color={color} />
         }} 
       />
-    </Tabs>
+      </Tabs>
+    </AppLayout>
   )
 }

@@ -1,11 +1,14 @@
 import { View, Text, TouchableOpacity } from 'react-native'
 import { colors, spacing } from '../theme/colors'
+import { BurgerMenu } from './burger-menu'
 
 interface ChatHeaderProps {
   contextPercent: number | null
   isConnected: boolean
   claudeIsRunning: boolean
   onRefresh: () => void
+  onToggleSidebar: () => void
+  sidebarOpen: boolean
 }
 
 function getContextColor(percent: number) {
@@ -30,6 +33,39 @@ const createHeaderStyles = () => ({
     borderBottomWidth: 1,
     borderBottomColor: colors.border.primary,
   },
+  headerLeft: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+  },
+  menuButton: {
+    marginRight: spacing.md,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  },
+  menuIconContainer: {
+    width: 24,
+    height: 16,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  },
+  menuIconBar: {
+    width: 20,
+    height: 2,
+    backgroundColor: colors.text.primary,
+    borderRadius: 1,
+  },
+  menuIconBarTop: {
+    width: 20,
+  },
+  menuIconBarMiddle: {
+    width: 20,
+  },
+  menuIconBarBottom: {
+    width: 20,
+  },
   headerTitle: {
     color: colors.text.primary,
     fontSize: 16,
@@ -45,42 +81,37 @@ const createHeaderStyles = () => ({
     marginRight: spacing.sm,
   },
   refreshButton: {
-    marginRight: spacing.md,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.background.tertiary,
+    marginRight: spacing.sm,
+    width: 32,
+    height: 32,
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
   },
   refreshIcon: {
-    fontSize: 16,
-    color: colors.text.secondary,
-    fontWeight: '600' as const,
+    fontSize: 18,
+    color: colors.text.tertiary,
+    fontWeight: '300' as const,
   },
   statusIndicator: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
   },
   statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: spacing.sm,
-  },
-  statusText: {
-    color: colors.text.secondary,
-    fontSize: 13,
-    fontWeight: '500' as const,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 })
 
-export function ChatHeader({ contextPercent, isConnected, claudeIsRunning, onRefresh }: ChatHeaderProps) {
+export function ChatHeader({ contextPercent, isConnected, claudeIsRunning, onRefresh, onToggleSidebar, sidebarOpen }: ChatHeaderProps) {
   const styles = createHeaderStyles()
   
   return (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>Claude Code</Text>
+      <View style={styles.headerLeft}>
+        <BurgerMenu isOpen={sidebarOpen} onPress={onToggleSidebar} />
+        <Text style={styles.headerTitle}>Claude Code</Text>
+      </View>
       <View style={styles.headerActions}>
         {contextPercent !== null && claudeIsRunning && (
           <Text style={[
@@ -108,11 +139,9 @@ export function ChatHeader({ contextPercent, isConnected, claudeIsRunning, onRef
               ? colors.text.tertiary 
               : claudeIsRunning 
                 ? colors.semantic.success 
-                : colors.accent.secondary
+                : colors.accent.primary,
+            opacity: !isConnected ? 0.5 : 1
           }]} />
-          <Text style={styles.statusText}>
-            {!isConnected ? 'Offline' : claudeIsRunning ? 'Ready' : 'Connected'}
-          </Text>
         </View>
       </View>
     </View>
