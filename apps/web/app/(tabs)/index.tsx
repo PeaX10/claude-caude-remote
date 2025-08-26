@@ -27,7 +27,7 @@ const createMainStyles = () => ({
   scrollToBottomButton: {
     position: 'absolute' as const,
     right: spacing.lg,
-    bottom: 80,
+    bottom: 32,
     width: 44,
     height: 44,
     borderRadius: 22,
