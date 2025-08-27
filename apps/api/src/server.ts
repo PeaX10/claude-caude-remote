@@ -465,7 +465,7 @@ io.on('connection', async (socket) => {
 
 server.listen(PORT, () => {
   if (process.env.NODE_ENV === 'development') {
-    console.log(`🚀 Server running on port ${PORT}`)
+    console.log(`🚀 Server running on http://0.0.0.0:${PORT}`)
   }
 }).on('error', (err: any) => {
   if (err.code === 'EADDRINUSE') {

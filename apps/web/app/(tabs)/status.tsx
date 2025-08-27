@@ -23,7 +23,7 @@ const MODELS = [
 
 export default function StatusScreen() {
   const [showModelPicker, setShowModelPicker] = useState(false);
-  const [serverUrl, setServerUrl] = useState("http://localhost:9876");
+  const [serverUrl, setServerUrl] = useState(process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.56:9876");
   const [showServerSettings, setShowServerSettings] = useState(false);
 
   const { isConnected, claudeStatus, startClaude, sendMessage } =

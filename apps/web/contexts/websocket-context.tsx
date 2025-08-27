@@ -361,7 +361,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [isConnected, socket, projects.map(p => p.tabs.map(t => t.sessionId).join(',')).join('|')])
 
   useEffect(() => {
-    const serverUrl = 'http://127.0.0.1:9876'
+    const serverUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.56:9876'
     const newSocket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 20000,

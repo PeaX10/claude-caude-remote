@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "dev": "expo start --dev-client --port 9877",
-    "android": "expo start --android --port 9877",
-    "ios": "expo start --ios --port 9877",
-    "start": "expo start --port 9877",
-    "web": "expo start --web --port 9877",
+    "dev": "expo start --dev-client --port 9877 --host lan",
+    "android": "expo start --android --port 9877 --host lan",
+    "ios": "expo start --ios --port 9877 --host lan",
+    "start": "expo start --port 9877 --host lan",
+    "web": "expo start --web --port 9877 --host lan",
     "build": "expo export",
     "lint": "eslint . --ext .ts,.tsx --fix",
     "clean": "rm -rf .expo dist"
