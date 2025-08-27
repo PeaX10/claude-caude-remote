@@ -8,20 +8,18 @@ import {
   Platform,
   Animated,
 } from "react-native";
-import { colors, spacing } from "../../theme/colors";
-import { useWebSocket } from "../../hooks/use-web-socket";
-import { useStore } from "../../store";
-import { useProjectStore } from "../../store/project-store";
-import { useScrollHandler } from "../../hooks/use-scroll-handler";
-import { EmptyState } from "../../components/empty-state";
-import { ClaudeMessage } from "../../components/claude-message";
-import { ToolMessage } from "../../components/tool-message";
-import { MessageInput } from "../../components/message-input";
-import { TypingIndicator } from "../../components/typing-indicator";
-import { ToolTrackerDisplay } from "../../components/shared/tool-tracker-display";
-import { AgentStatusDisplay } from "../../components/agent-status-display";
-import { SessionTabs } from "../../components/session-tabs";
-import { useRouter } from "expo-router";
+import { colors, spacing } from "../theme/colors";
+import { useWebSocket } from "../hooks/use-web-socket";
+import { useStore } from "../store";
+import { useProjectStore } from "../store/project-store";
+import { useScrollHandler } from "../hooks/use-scroll-handler";
+import { EmptyState } from "./empty-state";
+import { ClaudeMessage } from "./claude-message";
+import { ToolMessage } from "./tool-message";
+import { MessageInput } from "./message-input";
+import { TypingIndicator } from "./typing-indicator";
+import { ToolTrackerDisplay } from "./shared/tool-tracker-display";
+import { AgentStatusDisplay } from "./agent-status-display";
 
 const createMainStyles = () => ({
   container: {
@@ -73,34 +71,33 @@ const createMainStyles = () => ({
   },
 });
 
-export default function ChatScreen() {
+export default function ChatContent() {
   const styles = createMainStyles();
-  const router = useRouter();
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
   
-  const { activeProjectId, getActiveProject, addTab, recentSessions } = useProjectStore();
+  const { 
+    activeProjectId, 
+    getActiveProject, 
+    getTabMessages, 
+    addMessageToTab,
+    saveScrollPosition,
+    getScrollPosition 
+  } = useProjectStore();
   const activeProject = getActiveProject();
   
-  // Redirect to home if no active project
-  useEffect(() => {
-    if (!activeProjectId) {
-      router.push('/(tabs)/home');
-    }
-  }, [activeProjectId, router]);
-  
-  // Get active session from active tab
-  const activeSessionId = activeProject?.tabs.find(
+  // Get active tab
+  const activeTab = activeProject?.tabs.find(
     tab => tab.id === activeProject.activeTabId
-  )?.sessionId;
+  );
+  const activeSessionId = activeTab?.sessionId;
 
   const {
     isConnected,
     claudeStatus,
-    messages,
-    sendMessage,
+    sendMessage: wsSendMessage,
     startClaude,
     totalToolsUsed,
     runningToolsCount,
@@ -109,8 +106,11 @@ export default function ChatScreen() {
     completedAgents,
     agentToolCounts,
     getAgentToolIds,
+    loadSessionHistory,
   } = useWebSocket();
-
+  
+  // Get messages from the active tab
+  const messages = activeTab ? getTabMessages(activeProjectId!, activeTab.id) : [];
 
   const { setConnected, setClaudeRunning } = useStore();
 
@@ -119,8 +119,11 @@ export default function ChatScreen() {
     isAtBottom,
     scrollViewHeight,
     contentHeight,
+    currentScrollPosition,
     checkIfAtBottom,
     scrollToBottom,
+    scrollToPosition,
+    getCurrentScrollPosition,
     handleLayout,
     handleContentSizeChange,
   } = useScrollHandler();
@@ -130,15 +133,34 @@ export default function ChatScreen() {
     setClaudeRunning(claudeStatus.isRunning);
   }, [isConnected, claudeStatus.isRunning]);
 
-  // Filter messages to hide individual tool executions that belong to completed agents
+  const previousTabRef = useRef<string | undefined>();
+  const previousProjectRef = useRef<string | undefined>();
+  
+  useEffect(() => {
+    if (previousTabRef.current && 
+        previousProjectRef.current && 
+        (previousTabRef.current !== activeTab?.id || previousProjectRef.current !== activeProjectId)) {
+      const position = currentScrollPosition;
+      saveScrollPosition(previousProjectRef.current, previousTabRef.current, position);
+    }
+    previousTabRef.current = activeTab?.id;
+    previousProjectRef.current = activeProjectId || undefined;
+  }, [activeTab?.id, activeProjectId, currentScrollPosition, saveScrollPosition]);
+  
+  useEffect(() => {
+    if (activeSessionId && activeProject?.path && isConnected) {
+      if (!messages || messages.length === 0) {
+        loadSessionHistory(activeSessionId, activeProject.path);
+      }
+    }
+  }, [activeSessionId, activeProject?.path, isConnected, messages.length, loadSessionHistory]);
+
   const filteredMessages = useMemo(() => {
     const result = messages.filter((message) => {
-      // Don't filter if agent tracking is disabled
       if (completedAgents.length === 0) {
         return true;
       }
 
-      // Check if this is a tool message that belongs to a completed agent
       if (message.tool_use || message.tool_result) {
         const toolId = message.tool_use?.id || message.tool_result?.tool_use_id;
 
@@ -158,7 +180,6 @@ export default function ChatScreen() {
     return result;
   }, [messages, completedAgents, getAgentToolIds]);
 
-  // Further filter messages to exclude tool_result messages that have matching tool_use  
   const displayableMessages = useMemo(() => {
     return filteredMessages.filter((message, index) => {
       if (message.tool_result) {
@@ -176,26 +197,75 @@ export default function ChatScreen() {
     });
   }, [filteredMessages]);
 
+  const hasRestoredRef = useRef<string | undefined>();
+  
   useEffect(() => {
-    if (displayableMessages.length > 0 && isAtBottom) {
-      setTimeout(() => scrollToBottom(), 100);
+    if (!activeTab || !activeProjectId) return;
+    const isNewChatTab = activeTab.title === 'New Chat' && displayableMessages.length === 0;
+    if (isNewChatTab) {
+
+      return;
     }
-  }, [displayableMessages.length, isAtBottom]);
+    
+    const tabKey = `${activeProjectId}-${activeTab.id}`;
+    const savedPosition = getScrollPosition(activeProjectId, activeTab.id);
+    const lastMessageCount = activeTab.lastMessageCount || 0;
+    const currentMessageCount = displayableMessages.length;
+    const hasNewMessages = currentMessageCount > lastMessageCount;
+    if (hasRestoredRef.current === tabKey && !hasNewMessages) {
+      return;
+    }
+    setTimeout(() => {
+      if (hasNewMessages) {
+        scrollToBottom();
+        hasRestoredRef.current = tabKey;
+      } else if (savedPosition !== undefined && savedPosition >= 0) {
+        scrollToPosition(savedPosition, false);
+        hasRestoredRef.current = tabKey;
+      } else if (displayableMessages.length > 0) {
+        scrollToBottom(false);
+        hasRestoredRef.current = tabKey;
+      }
+    }, 100);
+  }, [activeTab?.id, displayableMessages.length, activeProjectId, getScrollPosition, scrollToBottom, scrollToPosition]);
 
   const handleSend = useCallback(() => {
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !activeTab) return;
 
     setIsTyping(true);
+    
+    // Add user message to the session
+    const userMessage = {
+      human: inputText,
+      timestamp: Date.now(),
+    };
+    addMessageToTab(activeProjectId!, activeTab.id, userMessage);
 
     if (isConnected) {
-      sendMessage(inputText);
-      setTimeout(() => setIsTyping(false), 1500);
+      // Send to WebSocket - in real implementation, this would be routed to the session
+      wsSendMessage(inputText);
+      
+      setTimeout(() => {
+        const assistantMessage = {
+          assistant: `[Session: ${activeTab.title}] I'm helping you with: "${inputText}". Each session maintains its own conversation history.`,
+          timestamp: Date.now(),
+        };
+        addMessageToTab(activeProjectId!, activeTab.id, assistantMessage);
+        setIsTyping(false);
+      }, 1500);
     } else {
-      setIsTyping(false);
+      setTimeout(() => {
+        const assistantMessage = {
+          assistant: `[Offline - ${activeTab.title}] Your message "${inputText}" has been recorded in this session.`,
+          timestamp: Date.now(),
+        };
+        addMessageToTab(activeProjectId!, activeTab.id, assistantMessage);
+        setIsTyping(false);
+      }, 500);
     }
 
     setInputText("");
-  }, [inputText, isConnected, sendMessage]);
+  }, [inputText, isConnected, wsSendMessage, activeTab, activeProjectId, addMessageToTab]);
 
   const showScrollButton =
     !isAtBottom && contentHeight > scrollViewHeight + 100;
@@ -205,16 +275,19 @@ export default function ChatScreen() {
   }, [scrollToBottom]);
 
   if (!activeProject) {
-    return null;
+    return (
+      <View style={styles.container}>
+        <View style={styles.messagesContainer}>
+          <Text style={{ color: colors.text.primary, textAlign: 'center', marginTop: 50 }}>
+            No active project selected
+          </Text>
+        </View>
+      </View>
+    );
   }
-  
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-    >
-      <SessionTabs projectId={activeProjectId!} />
+    <View style={styles.container}>
       <View style={styles.messagesContainer}>
         <ScrollView
           ref={scrollViewRef}
@@ -233,13 +306,14 @@ export default function ChatScreen() {
               onStartClaude={startClaude}
               fadeAnim={fadeAnim}
               slideAnim={slideAnim}
+              sessionTitle={activeTab?.title}
+              projectId={activeProjectId}
+              tabId={activeTab?.id}
             />
           ) : (
             <>
               {displayableMessages.map((message, index) => {
-                // Check if this is a tool_use message
                 if (message.tool_use) {
-                  // Look for matching tool_result by ID (can be anywhere after this message)
                   const matchingResult = displayableMessages
                     .slice(index + 1)
                     .find(
@@ -248,7 +322,6 @@ export default function ChatScreen() {
                         msg.tool_result.tool_use_id === message.tool_use?.id
                     );
 
-                  // Render unified tool message
                   return (
                     <Animated.View
                       key={index}
@@ -266,7 +339,6 @@ export default function ChatScreen() {
                   );
                 }
 
-                // Render regular message (tool_result messages already filtered out)
                 return (
                   <ClaudeMessage
                     key={index}
@@ -325,6 +397,6 @@ export default function ChatScreen() {
         onSend={handleSend}
         isConnected={isConnected}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }

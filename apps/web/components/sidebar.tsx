@@ -1,40 +1,40 @@
-import { useState, useEffect } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Animated, Dimensions, TouchableWithoutFeedback } from 'react-native'
-import { Feather } from '@expo/vector-icons'
-import { colors, spacing } from '../theme/colors'
-import { useStore } from '../store'
-import { useWebSocket } from '../hooks/use-web-socket'
-
-interface Project {
-  name: string
-  path: string
-  encodedPath?: string
-  sessions: number
-}
-
-interface Session {
-  id: string
-  title?: string
-  created_at: number
-  last_used: number
-}
+import { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  ScrollView, 
+  Animated, 
+  TouchableWithoutFeedback,
+  StyleSheet
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { colors, spacing } from '../theme/colors';
+import { useProjectStore } from '../store/project-store';
+import { useRouter, usePathname } from 'expo-router';
 
 interface SidebarProps {
-  isOpen: boolean
-  onToggle: () => void
-  onSelectSession: (sessionId: string, projectPath: string) => void
+  isOpen: boolean;
+  onToggle: () => void;
 }
 
-export function Sidebar({ isOpen, onToggle, onSelectSession }: SidebarProps) {
-  const [projects, setProjects] = useState<Project[]>([])
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
-  const [projectSessions, setProjectSessions] = useState<{ [key: string]: Session[] }>({})
-  const [selectedSession, setSelectedSession] = useState<string | null>(null)
-  const slideAnim = useState(new Animated.Value(isOpen ? 0 : -280))[0]
-  const overlayAnim = useState(new Animated.Value(isOpen ? 1 : 0))[0]
-  const { width } = Dimensions.get('window')
-  const { activeProjectPath, setActiveProject } = useStore()
-  const { socket, watchSession } = useWebSocket()
+export function Sidebar({ isOpen, onToggle }: SidebarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { 
+    projects, 
+    activeProjectId, 
+    setActiveProject, 
+    addTab,
+    setActiveTab 
+  } = useProjectStore();
+  
+  // Check if we're on home page
+  const isOnHome = pathname?.includes('/home') || false;
+  
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const slideAnim = useState(new Animated.Value(isOpen ? 0 : -280))[0];
+  const overlayAnim = useState(new Animated.Value(isOpen ? 1 : 0))[0];
 
   useEffect(() => {
     Animated.parallel([
@@ -49,62 +49,54 @@ export function Sidebar({ isOpen, onToggle, onSelectSession }: SidebarProps) {
         duration: 300,
         useNativeDriver: true,
       })
-    ]).start()
-  }, [isOpen])
+    ]).start();
+  }, [isOpen]);
 
-  useEffect(() => {
-    if (!socket) return
-
-    socket.emit('claude_get_projects')
-
-    socket.on('claude_projects', (data: Project[]) => {
-      setProjects(data)
-    })
-
-    socket.on('claude_project_sessions', (data: { projectPath: string, sessions: Session[] }) => {
-      setProjectSessions(prev => ({
-        ...prev,
-        [data.projectPath]: data.sessions
-      }))
-    })
-
-    return () => {
-      socket.off('claude_projects')
-      socket.off('claude_project_sessions')
-    }
-  }, [socket])
-
-  const toggleProject = (projectPath: string) => {
-    const newExpanded = new Set(expandedProjects)
-    if (newExpanded.has(projectPath)) {
-      newExpanded.delete(projectPath)
+  const toggleProject = (projectId: string) => {
+    const newExpanded = new Set(expandedProjects);
+    if (newExpanded.has(projectId)) {
+      newExpanded.delete(projectId);
     } else {
-      newExpanded.add(projectPath)
-      socket?.emit('claude_get_project_sessions', { projectPath })
+      newExpanded.add(projectId);
     }
-    setExpandedProjects(newExpanded)
-  }
+    setExpandedProjects(newExpanded);
+  };
 
-  const handleSelectSession = (sessionId: string, projectPath: string) => {
-    setSelectedSession(sessionId)
-    setActiveProject(projectPath, sessionId)
-    onSelectSession(sessionId, projectPath)
-    socket?.emit('claude_get_session_history', { sessionId, projectPath })
-    // Start watching session file for real-time updates
-    watchSession(sessionId, projectPath)
-  }
-
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+  const handleProjectClick = (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project) return;
     
-    if (days === 0) return 'Today'
-    if (days === 1) return 'Yesterday'
-    if (days < 7) return `${days} days ago`
-    return date.toLocaleDateString()
-  }
+    setActiveProject(projectId);
+    
+    // If project has no tabs, create one
+    if (project.tabs.length === 0) {
+      const newTabId = addTab(projectId, {
+        sessionId: `new_${Date.now()}`,
+        title: 'New Chat',
+      });
+      setActiveTab(projectId, newTabId);
+    } else if (!project.activeTabId || !project.tabs.find(t => t.id === project.activeTabId)) {
+      // If no active tab or active tab doesn't exist, set the first tab as active
+      setActiveTab(projectId, project.tabs[0].id);
+    }
+    // Otherwise keep the existing active tab
+    
+    router.push('./project');
+    onToggle();
+  };
+
+  const handleTabClick = (projectId: string, tabId: string) => {
+    setActiveProject(projectId);
+    setActiveTab(projectId, tabId);
+    router.push('./project');
+    onToggle();
+  };
+
+  const handleHomeClick = () => {
+    setActiveProject(null);  // Clear active project when going home
+    router.push('./home');
+    onToggle();
+  };
 
   return (
     <>
@@ -125,85 +117,113 @@ export function Sidebar({ isOpen, onToggle, onSelectSession }: SidebarProps) {
 
       <Animated.View style={[styles.container, { transform: [{ translateX: slideAnim }] }]}>
         <View style={styles.header}>
-          <Text style={styles.title}>Projects</Text>
+          <TouchableOpacity onPress={handleHomeClick} activeOpacity={0.7}>
+            <Text style={styles.title}>Claude Remote</Text>
+          </TouchableOpacity>
         </View>
-      
-      <ScrollView style={styles.content}>
-        {projects.map((project) => (
-          <View key={project.encodedPath || project.path}>
-            <TouchableOpacity 
-              style={styles.projectItem}
-              onPress={() => toggleProject(project.path)}
-            >
-              <View style={[
-                styles.projectIcon, 
-                { transform: [{ rotate: expandedProjects.has(project.path) ? '90deg' : '0deg' }] }
-              ]}>
-                <Text style={styles.chevron}>›</Text>
-              </View>
-              <View style={styles.projectInfo}>
-                <View style={styles.projectHeader}>
-                  <Text style={styles.projectName}>{project.name}</Text>
-                  {activeProjectPath === project.path && (
-                    <View style={styles.activeIndicator} />
-                  )}
-                </View>
-                <Text style={styles.sessionCount}>{`${project.sessions} ${project.sessions === 1 ? 'session' : 'sessions'}`}</Text>
-              </View>
-            </TouchableOpacity>
+        
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Home Link */}
+          <TouchableOpacity 
+            style={[styles.homeLink, isOnHome && styles.activeLinkItem]}
+            onPress={handleHomeClick}
+            activeOpacity={0.7}
+          >
+            <Feather name="home" size={16} color={isOnHome ? colors.accent.primary : colors.text.secondary} />
+            <Text style={[styles.homeLinkText, isOnHome && styles.activeText]}>Home</Text>
+          </TouchableOpacity>
+          
+          {/* Projects Section */}
+          <Text style={styles.sectionTitle}>Projects</Text>
+          
+          {projects.map((project) => {
+            const isActive = activeProjectId === project.id;
+            const isExpanded = expandedProjects.has(project.id);
             
-            {expandedProjects.has(project.path) && projectSessions[project.path] && (
-              <View style={styles.sessionsList}>
-                {projectSessions[project.path].map((session) => (
+            return (
+              <View key={project.id}>
+                <TouchableOpacity 
+                  style={[styles.projectItem, isActive && styles.activeProjectItem]}
+                  onPress={() => handleProjectClick(project.id)}
+                  activeOpacity={0.7}
+                >
                   <TouchableOpacity
-                    key={session.id}
-                    style={[
-                      styles.sessionItem,
-                      selectedSession === session.id && styles.selectedSession
-                    ]}
-                    onPress={() => handleSelectSession(session.id, project.path)}
+                    style={styles.expandButton}
+                    onPress={() => toggleProject(project.id)}
+                    activeOpacity={0.7}
                   >
-                    <Text style={styles.sessionTitle}>
-                      {session.title || session.id.slice(0, 8)}
-                    </Text>
-                    <Text style={styles.sessionDate}>
-                      {formatDate(session.last_used)}
-                    </Text>
+                    <Feather 
+                      name={isExpanded ? 'chevron-down' : 'chevron-right'} 
+                      size={14} 
+                      color={colors.text.tertiary}
+                    />
                   </TouchableOpacity>
-                ))}
+                  
+                  <Text style={[styles.projectName, isActive && styles.activeText]}>
+                    {project.name}
+                  </Text>
+                  
+                  {project.tabs.length > 0 && (
+                    <View style={styles.tabCount}>
+                      <Text style={styles.tabCountText}>{project.tabs.length}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+                
+                {/* Tabs */}
+                {isExpanded && project.tabs.length > 0 && (
+                  <View style={styles.tabsList}>
+                    {project.tabs.map((tab) => {
+                      const isActiveTab = isActive && project.activeTabId === tab.id;
+                      
+                      return (
+                        <TouchableOpacity
+                          key={tab.id}
+                          style={[styles.tabItem, isActiveTab && styles.activeTabItem]}
+                          onPress={() => handleTabClick(project.id, tab.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.tabTitle, isActiveTab && styles.activeTabTitle]}>
+                            {tab.title}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-        ))}
-      </ScrollView>
-      
-      <View style={styles.footer}>
-        <View style={{ flex: 1 }} />
-        <TouchableOpacity 
-          style={styles.addButton}
-          onPress={() => {}}
-          activeOpacity={0.7}
-        >
-          <Feather name="folder-plus" size={22} color={colors.accent.primary} />
-        </TouchableOpacity>
-      </View>
+            );
+          })}
+          
+          {projects.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>No projects yet</Text>
+            </View>
+          )}
+        </ScrollView>
       </Animated.View>
     </>
-  )
+  );
 }
 
-const styles = {
+const styles = StyleSheet.create({
+  activeLinkItem: {
+    backgroundColor: colors.accent.primary + '10',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.accent.primary,
+    paddingLeft: spacing.lg - 3,
+  },
   overlay: {
-    position: 'absolute' as const,
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     zIndex: 999,
   },
   container: {
-    position: 'absolute' as const,
+    position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
@@ -211,117 +231,115 @@ const styles = {
     backgroundColor: colors.background.secondary,
     shadowColor: '#000',
     shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
     elevation: 10,
     zIndex: 1000,
   },
   header: {
-    height: 73,
-    justifyContent: 'center' as const,
+    height: 60,
+    justifyContent: 'center',
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.primary,
-    backgroundColor: colors.background.secondary,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600' as const,
+    fontSize: 18,
+    fontWeight: '600',
     color: colors.text.primary,
   },
   content: {
     flex: 1,
   },
-  projectItem: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
+  homeLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border.secondary,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border.primary,
   },
-  projectIcon: {
-    width: 20,
-    height: 20,
-    marginRight: spacing.sm,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-  },
-  chevron: {
-    fontSize: 20,
-    color: colors.text.tertiary,
-    fontWeight: '300' as const,
-  },
-  projectInfo: {
-    flex: 1,
-  },
-  projectHeader: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-  },
-  projectName: {
-    fontSize: 16,
-    fontWeight: '500' as const,
-    color: colors.text.primary,
-  },
-  activeIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.accent.primary,
+  homeLinkText: {
+    fontSize: 15,
+    color: colors.text.secondary,
     marginLeft: spacing.sm,
   },
-  projectPath: {
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    color: colors.text.tertiary,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  projectItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingLeft: spacing.md,
+    minHeight: 40,
+  },
+  activeProjectItem: {
+    backgroundColor: colors.background.primary,
+  },
+  expandButton: {
+    padding: spacing.xs,
+    marginRight: spacing.xs,
+  },
+  projectName: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text.primary,
+  },
+  activeText: {
+    color: colors.accent.primary,
+    fontWeight: '500',
+  },
+  tabCount: {
+    backgroundColor: colors.background.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: 'center',
+  },
+  tabCountText: {
     fontSize: 11,
     color: colors.text.tertiary,
-    marginTop: 2,
-    opacity: 0.8,
   },
-  sessionCount: {
-    fontSize: 12,
-    color: colors.text.secondary,
-    marginTop: 4,
+  tabsList: {
+    backgroundColor: colors.background.primary,
+    paddingVertical: spacing.sm,
+    paddingBottom: spacing.md,
   },
-  sessionsList: {
-    backgroundColor: colors.background.tertiary,
-  },
-  sessionItem: {
+  tabItem: {
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.lg,
     paddingLeft: spacing.xl + spacing.xl,
-    paddingRight: spacing.lg,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: colors.border.secondary,
+    minHeight: 32,
   },
-  selectedSession: {
-    backgroundColor: colors.accent.primary + '20',
-    borderLeftWidth: 3,
+  activeTabItem: {
+    backgroundColor: colors.accent.primary + '10',
+    borderLeftWidth: 2,
     borderLeftColor: colors.accent.primary,
-    paddingLeft: spacing.xl + spacing.xl - 3,
+    paddingLeft: spacing.xl + spacing.xl - 2,
   },
-  sessionTitle: {
+  tabTitle: {
     fontSize: 14,
-    color: colors.text.primary,
-    marginBottom: 3,
-  },
-  sessionDate: {
-    fontSize: 12,
     color: colors.text.secondary,
-    opacity: 0.8,
   },
-  footer: {
-    height: 56,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    paddingHorizontal: spacing.md,
-    borderTopWidth: 0.5,
-    borderTopColor: colors.border.secondary,
-    backgroundColor: colors.background.secondary,
+  activeTabTitle: {
+    color: colors.accent.primary,
   },
-  addButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
+  emptyState: {
+    padding: spacing.xl,
+    alignItems: 'center',
   },
-}
+  emptyText: {
+    fontSize: 14,
+    color: colors.text.tertiary,
+  },
+});

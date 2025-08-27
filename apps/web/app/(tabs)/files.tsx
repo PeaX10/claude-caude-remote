@@ -10,7 +10,7 @@ import {
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { useWebSocket } from '../../hooks/use-web-socket'
-import { useStore } from '../../store'
+import { useProjectStore } from '../../store/project-store'
 import { colors, spacing } from '../../theme/colors'
 
 interface FileItem {
@@ -24,7 +24,9 @@ interface FileItem {
 }
 
 export default function FilesScreen() {
-  const { activeProjectPath } = useStore()
+  const { getActiveProject } = useProjectStore()
+  const activeProject = getActiveProject()
+  const activeProjectPath = activeProject?.path || ''
   const [currentPath, setCurrentPath] = useState('')
   const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -213,7 +215,7 @@ export default function FilesScreen() {
           {file.isLoading ? (
             <View style={[styles.loadingItem, { paddingLeft: 40 + depth * 24 }]}>
               <ActivityIndicator size="small" color={colors.text.tertiary} />
-              <Text style={styles.loadingText}>Loading...</Text>
+              <Text style={styles.loadingTextStyle}>Loading...</Text>
             </View>
           ) : file.children && file.children.length > 0 ? (
             file.children.map(child => renderFileItem(child, depth + 1))
@@ -363,7 +365,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
   },
-  loadingText: {
+  loadingTextStyle: {
     color: colors.text.tertiary,
     fontSize: 13,
     marginLeft: spacing.sm,

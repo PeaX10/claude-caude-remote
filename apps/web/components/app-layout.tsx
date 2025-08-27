@@ -18,17 +18,11 @@ export function AppLayout({ children }: AppLayoutProps) {
     // Refresh functionality can be added here if needed
   }
 
-  const handleSelectSession = (sessionId: string, projectPath: string) => {
-    // Session selection is handled directly in the sidebar component
-    setSidebarOpen(false) // Close sidebar after selection
-  }
-
   return (
     <View style={styles.container}>
       <Sidebar 
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onSelectSession={handleSelectSession}
       />
       <SafeAreaView style={styles.content}>
         <ChatHeader

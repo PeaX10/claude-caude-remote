@@ -26,6 +26,7 @@ interface ClaudeMessage {
 
 interface ClaudeSession {
   id: string;
+  title?: string;
   created_at: number;
   last_used: number;
   cwd: string;
@@ -422,12 +423,13 @@ export class ClaudeService extends EventEmitter {
     return sessions.sort((a, b) => b.last_used - a.last_used);
   }
 
-  async getSessions(): Promise<ClaudeSession[]> {
+  async getSessions(projectPath?: string): Promise<ClaudeSession[]> {
     const sessions: ClaudeSession[] = [];
     
     try {
-      const projectPath = this.currentSession?.cwd || process.cwd();
-      const projectDirName = projectPath.replace(/\//g, '-');
+      const actualProjectPath = projectPath || this.currentSession?.cwd || process.cwd();
+      
+      const projectDirName = actualProjectPath.replace(/\//g, '-');
       const claudeProjectDir = join(homedir(), '.claude', 'projects', projectDirName);
       
       try {
@@ -444,11 +446,27 @@ export class ClaudeService extends EventEmitter {
         const filePath = join(claudeProjectDir, file);
         const stats = await stat(filePath);
         
+        // Try to read the first line to get the summary
+        let title = '';
+        try {
+          const content = await readFile(filePath, 'utf-8');
+          const firstLine = content.split('\n')[0];
+          if (firstLine) {
+            const parsed = JSON.parse(firstLine);
+            if (parsed.type === 'summary' && parsed.summary) {
+              title = parsed.summary;
+            }
+          }
+        } catch (err) {
+          // If we can't read the summary, just use empty title
+        }
+        
         const session = {
           id: sessionId,
+          title,
           created_at: stats.birthtime.getTime(),
           last_used: stats.mtime.getTime(),
-          cwd: projectPath
+          cwd: actualProjectPath
         };
         
         sessions.push(session);

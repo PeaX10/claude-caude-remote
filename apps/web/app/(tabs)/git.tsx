@@ -20,8 +20,13 @@ export default function GitScreen() {
   const [newBranchName, setNewBranchName] = useState('')
   const [activeTab, setActiveTab] = useState<'status' | 'branches' | 'commits'>('status')
 
-  const { isConnected, runGitCommand } = use-web-socket()
+  const { isConnected } = useWebSocket()
   const { isClaudeRunning } = useStore()
+  
+  // TODO: Implement runGitCommand when WebSocket is ready
+  const runGitCommand = (command: string) => {
+    console.log('Git command:', command)
+  }
 
   const handleCommit = () => {
     if (!commitMessage.trim()) return

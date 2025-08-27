@@ -12,7 +12,7 @@ import {
 } from './messages'
 import { ToolMessage } from './tool-message'
 
-interface ClaudeMessage {
+interface ClaudeMessageType {
   type?: string
   role?: string
   content?: string | any[]
@@ -45,7 +45,7 @@ interface ClaudeMessage {
 }
 
 interface ClaudeMessageProps {
-  message: ClaudeMessage
+  message: ClaudeMessageType
   fadeAnim: Animated.Value
   slideAnim: Animated.Value
 }

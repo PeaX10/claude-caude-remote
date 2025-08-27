@@ -369,18 +369,21 @@ io.on('connection', async (socket) => {
     }
   })
 
-  socket.on('claude_get_sessions', async () => {
+  socket.on('claude_get_sessions', async (data?: { projectPath?: string }) => {
     try {
-      const sessions = await claude.getSessions()
+      const projectPath = data?.projectPath
+      const sessions = await claude.getSessions(projectPath)
       const safeSessions = sessions.map(s => ({
         id: String(s.id || ''),
+        title: String(s.title || ''),
         created_at: Number(s.created_at || 0),
         last_used: Number(s.last_used || 0),
         cwd: String(s.cwd || '')
       }))
-      socket.emit('claude_sessions', safeSessions)
+      socket.emit('claude_sessions', { sessions: safeSessions, projectPath })
     } catch (error) {
-      socket.emit('claude_sessions', [])
+      console.error('[Server] Error getting sessions:', error)
+      socket.emit('claude_sessions', { sessions: [], projectPath: data?.projectPath })
     }
   })
   
@@ -441,7 +444,6 @@ io.on('connection', async (socket) => {
       claude.stopWatchingSession(data.sessionId, data.projectPath)
       socket.emit('claude_session_watch_stopped', { sessionId: data.sessionId, projectPath: data.projectPath })
     } catch (error) {
-      // Silent error for unwatch
     }
   })
 
