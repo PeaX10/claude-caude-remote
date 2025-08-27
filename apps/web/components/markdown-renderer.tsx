@@ -105,7 +105,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
           }
         })
         
-        // Ensure all elements are wrapped in Text components and filter out empty ones
+        // Ensure all elements are wrapped in Text components with consistent baseline alignment
         const validElements = elements.filter(el => el && (typeof el === 'string' || React.isValidElement(el)))
         return validElements.length > 0 ? validElements : [<Text key="text" style={styles.text}>{text}</Text>]
       }
@@ -113,7 +113,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
       // Check headings first (fixed to process before other patterns)
       if (line.startsWith('### ')) {
         formattedLines.push(
-          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' }}>
             {processInlineStyles(line.substring(4)).map((element, idx) => (
               React.cloneElement(element as React.ReactElement, {
                 key: idx,
@@ -124,7 +124,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
         )
       } else if (line.startsWith('## ')) {
         formattedLines.push(
-          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' }}>
             {processInlineStyles(line.substring(3)).map((element, idx) => (
               React.cloneElement(element as React.ReactElement, {
                 key: idx,
@@ -135,7 +135,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
         )
       } else if (line.startsWith('# ')) {
         formattedLines.push(
-          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' }}>
             {processInlineStyles(line.substring(2)).map((element, idx) => (
               React.cloneElement(element as React.ReactElement, {
                 key: idx,
@@ -148,7 +148,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
         formattedLines.push(
           <View key={`line-${key}-${lineIndex}`} style={styles.listItem}>
             <Text style={styles.listBullet}>•</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', flex: 1 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', flex: 1, alignItems: 'baseline' }}>
               {processInlineStyles(line.substring(2))}
             </View>
           </View>
@@ -158,7 +158,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
         formattedLines.push(
           <View key={`line-${key}-${lineIndex}`} style={styles.listItem}>
             <Text style={styles.listNumber}>{`${number}.`}</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', flex: 1 }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', flex: 1, alignItems: 'baseline' }}>
               {processInlineStyles(line.replace(/^\d+\. /, ''))}
             </View>
           </View>
@@ -167,7 +167,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
         const blockquoteElements = processInlineStyles(line.substring(2))
         formattedLines.push(
           <View key={`line-${key}-${lineIndex}`} style={styles.blockquote}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' }}>
               {blockquoteElements.map((element, idx) => (
                 <Text key={idx} style={styles.blockquoteText}>{element?.props?.children || element}</Text>
               ))}
@@ -177,7 +177,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
       } else if (line) {
         const elements = processInlineStyles(line)
         formattedLines.push(
-          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline' }}>
             {elements}
           </View>
         )
@@ -258,23 +258,28 @@ const styles = {
     marginBottom: spacing.xs,
   },
   bold: {
+    fontSize: 15,
+    lineHeight: 24,
     fontWeight: '700' as const,
     color: colors.text.primary,
   },
   italic: {
+    fontSize: 15,
+    lineHeight: 24,
     fontStyle: 'italic' as const,
     color: colors.text.primary,
   },
   inlineCode: {
     fontFamily: 'monospace',
     fontSize: 13,
-    backgroundColor: colors.background.elevated,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 3,
-    color: colors.text.primary,
+    lineHeight: 20,
+    backgroundColor: 'rgba(139, 92, 246, 0.1)', // Violet translucide élégant
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    color: colors.accent.primary,
     borderWidth: 1,
-    borderColor: colors.border.primary,
+    borderColor: 'rgba(139, 92, 246, 0.2)', // Bordure violet très subtile
   },
   link: {
     color: colors.accent.primary,
@@ -308,33 +313,36 @@ const styles = {
   },
   listBullet: {
     fontSize: 15,
-    color: colors.text.secondary,
+    lineHeight: 24,
+    color: colors.accent.primary,
     marginRight: spacing.sm,
   },
   listNumber: {
     fontSize: 15,
-    color: colors.text.secondary,
+    lineHeight: 24,
+    color: colors.accent.primary,
     marginRight: spacing.sm,
     minWidth: 20,
   },
   blockquote: {
     borderLeftWidth: 3,
-    borderLeftColor: colors.accent.secondary,
+    borderLeftColor: colors.accent.primary,
     paddingLeft: spacing.md,
     marginVertical: spacing.sm,
   },
   blockquoteText: {
     fontSize: 15,
+    lineHeight: 24,
     color: colors.text.secondary,
     fontStyle: 'italic' as const,
   },
   codeBlock: {
     backgroundColor: colors.background.elevated,
-    borderRadius: 6,
+    borderRadius: 8,
     marginVertical: spacing.sm,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.border.primary,
+    borderColor: 'rgba(139, 92, 246, 0.15)',
   },
   codeHeader: {
     flexDirection: 'row' as const,
@@ -343,8 +351,8 @@ const styles = {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
-    backgroundColor: colors.background.tertiary,
+    borderBottomColor: 'rgba(139, 92, 246, 0.1)',
+    backgroundColor: 'rgba(139, 92, 246, 0.05)',
   },
   codeLanguage: {
     fontSize: 11,
