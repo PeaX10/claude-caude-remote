@@ -430,28 +430,30 @@ export class ClaudeService extends EventEmitter {
     return sessions.sort((a, b) => b.last_used - a.last_used);
   }
 
-  async getSessionHistory(sessionId: string): Promise<any[]> {
+  async getSessionHistory(sessionId: string, projectPath?: string): Promise<any[]> {
     try {
-      const projectPath = this.currentSession?.cwd || process.cwd();
-      const projectDirName = projectPath.replace(/\//g, '-');
+      const path = projectPath || this.currentSession?.cwd || process.cwd();
+      const projectDirName = path.replace(/\//g, '-');
       const sessionFile = join(homedir(), '.claude', 'projects', projectDirName, `${sessionId}.jsonl`);
       
-      console.log('📖 Reading session history from:', sessionFile);
-      
+      console.log(`📖 Reading session file: ${sessionFile}`);
       const content = await readFile(sessionFile, 'utf-8');
       const lines = content.split('\n').filter(line => line.trim());
+      console.log(`📖 Found ${lines.length} lines in session file`);
+      
       const messages = lines.map(line => {
         try {
           return JSON.parse(line);
-        } catch {
+        } catch (e) {
+          console.log('❌ Failed to parse line:', line);
           return null;
         }
       }).filter(msg => msg !== null);
       
-      console.log(`📖 Found ${messages.length} messages in session`);
+      console.log(`📖 Parsed ${messages.length} valid messages`);
       return messages;
     } catch (error) {
-      console.error('📖 Error reading session history:', error);
+      console.error('❌ Error reading session history:', error);
       return [];
     }
   }

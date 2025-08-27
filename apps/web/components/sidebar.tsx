@@ -88,6 +88,7 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
     setSelectedSession(sessionId)
     setActiveProject(projectPath, sessionId)
     onSelectSession(sessionId, projectPath)
+    socket?.emit('claude_get_session_history', { sessionId, projectPath })
   }
 
   const formatDate = (timestamp: number) => {

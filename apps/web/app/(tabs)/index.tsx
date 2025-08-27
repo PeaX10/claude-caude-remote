@@ -5,7 +5,8 @@ import { useWebSocket } from '../../hooks/use-web-socket'
 import { useStore } from '../../store'
 import { useScrollHandler } from '../../hooks/use-scroll-handler'
 import { EmptyState } from '../../components/empty-state'
-import { MessageBubble } from '../../components/message-bubble'
+import { ClaudeMessage } from '../../components/claude-message'
+import { ToolMessage } from '../../components/tool-message'
 import { MessageInput } from '../../components/message-input'
 import { TypingIndicator } from '../../components/typing-indicator'
 
@@ -19,12 +20,12 @@ const createMainStyles = () => ({
     paddingTop: spacing.sm,
   },
   messagesContent: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.sm,
     paddingBottom: spacing.lg,
   },
   scrollToBottomButton: {
     position: 'absolute' as const,
-    right: spacing.lg,
+    right: spacing.md,
     bottom: 32,
     width: 44,
     height: 44,
@@ -130,14 +131,45 @@ export default function ChatScreen() {
               slideAnim={slideAnim}
             />
           ) : (
-            messages.map((message, index) => (
-              <MessageBubble
-                key={index}
-                message={message}
-                fadeAnim={fadeAnim}
-                slideAnim={slideAnim}
-              />
-            ))
+            messages.map((message, index) => {
+              // Check if this is a tool_use message
+              if (message.tool_use) {
+                // Look for the next tool_result message
+                const nextMessage = messages[index + 1]
+                const hasResult = nextMessage && nextMessage.tool_result
+                
+                // Render unified tool message
+                return (
+                  <Animated.View 
+                    key={index}
+                    style={{
+                      opacity: fadeAnim, 
+                      transform: [{ translateY: slideAnim }]
+                    }}
+                  >
+                    <ToolMessage
+                      toolUse={message.tool_use}
+                      toolResult={hasResult ? nextMessage.tool_result : undefined}
+                      timestamp={message.timestamp}
+                    />
+                  </Animated.View>
+                )
+              }
+              
+              // Skip tool_result messages as they're already shown with their tool_use
+              if (message.tool_result && index > 0 && messages[index - 1].tool_use) {
+                return null
+              }
+              
+              return (
+                <ClaudeMessage
+                  key={index}
+                  message={message}
+                  fadeAnim={fadeAnim}
+                  slideAnim={slideAnim}
+                />
+              )
+            })
           )}
           
           {isTyping && <TypingIndicator />}

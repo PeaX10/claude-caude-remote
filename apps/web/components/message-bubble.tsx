@@ -43,6 +43,12 @@ export function MessageBubble({ message, fadeAnim, slideAnim }: MessageBubblePro
   const styles = createMessageStyles()
   const isUser = message.role === 'user'
   
+  // Ensure content is a safe string
+  const safeContent = String(message.content || '').trim()
+  
+  // Don't render if no content
+  if (!safeContent) return null
+  
   return (
     <Animated.View 
       style={[
@@ -55,7 +61,7 @@ export function MessageBubble({ message, fadeAnim, slideAnim }: MessageBubblePro
           {isUser ? 'You' : 'Claude'}
         </Text>
         <Text style={styles.messageContent}>
-          {message.content}
+          {safeContent}
         </Text>
       </View>
     </Animated.View>

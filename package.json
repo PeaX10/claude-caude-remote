@@ -22,6 +22,8 @@
     "bun": ">=1.0.0"
   },
   "dependencies": {
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "react-native-markdown-display": "^7.0.2",
     "socket.io-client": "^4.8.1"
   }
 }

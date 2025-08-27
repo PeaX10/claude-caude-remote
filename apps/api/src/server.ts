@@ -334,6 +334,18 @@ io.on('connection', async (socket) => {
       socket.emit('claude_project_sessions', { projectPath: data.projectPath, sessions: [] })
     }
   })
+  
+  socket.on('claude_get_session_history', async (data) => {
+    try {
+      console.log('📖 Loading session history:', data)
+      const history = await claude.getSessionHistory(data.sessionId, data.projectPath)
+      console.log(`📖 Found ${history.length} messages for session ${data.sessionId}`)
+      socket.emit('claude_session_history', { sessionId: data.sessionId, history })
+    } catch (error) {
+      console.error('❌ Error loading session history:', error)
+      socket.emit('claude_session_history', { sessionId: data.sessionId, history: [] })
+    }
+  })
 
   socket.on('file_list', async (data) => {
     try {

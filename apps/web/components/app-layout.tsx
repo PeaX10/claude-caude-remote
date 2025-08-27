@@ -12,13 +12,15 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { isConnected, claudeStatus, contextPercent, getFullOutput, socket } = useWebSocket()
+  const { isConnected, claudeStatus, socket } = useWebSocket()
 
   const handleRefresh = () => {
-    getFullOutput()
+    // Refresh functionality can be added here if needed
   }
 
   const handleSelectSession = (sessionId: string, projectPath: string) => {
+    // Session selection is handled directly in the sidebar component
+    setSidebarOpen(false) // Close sidebar after selection
   }
 
   return (
@@ -31,7 +33,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       />
       <SafeAreaView style={styles.content}>
         <ChatHeader
-          contextPercent={contextPercent}
+          contextPercent={0}
           isConnected={isConnected}
           claudeIsRunning={claudeStatus.isRunning}
           onRefresh={handleRefresh}

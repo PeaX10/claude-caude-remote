@@ -54,7 +54,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => <Feather name="settings" size={20} color={color} />
         }} 
       />
-      </Tabs>
+    </Tabs>
     </AppLayout>
   )
 }
