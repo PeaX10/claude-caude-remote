@@ -75,7 +75,7 @@ export const Button: React.FC<ButtonProps> = ({
       activeOpacity={0.7}
     >
       <Text style={[styles.text, getTextSizeStyle(), getTextVariantStyle()]}>
-        {icon && `${icon} `}{title}
+        {icon ? `${icon} ${title}` : title}
       </Text>
     </TouchableOpacity>
   )
@@ -88,7 +88,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     borderWidth: 1,
-    ...shadows.sm,
+    shadowColor: shadows.sm.shadowColor,
+    shadowOffset: shadows.sm.shadowOffset,
+    shadowOpacity: shadows.sm.shadowOpacity,
+    shadowRadius: shadows.sm.shadowRadius,
+    elevation: shadows.sm.elevation,
   },
   sm: {
     paddingHorizontal: spacing.sm,

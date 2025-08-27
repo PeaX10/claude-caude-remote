@@ -91,7 +91,6 @@ export function decodeProjectPath(encodedPath: string): string {
       if (existsSync(candidatePath)) {
         const stat = statSync(candidatePath);
         if (stat.isDirectory()) {
-          console.log(`✅ Found valid path: ${encodedPath} -> ${candidatePath}`);
           return candidatePath;
         }
       }
@@ -102,7 +101,6 @@ export function decodeProjectPath(encodedPath: string): string {
   
   // If no strategy worked, return null to indicate the path doesn't exist
   const fallbackPath = decodedPath.replace(/-/g, '/');
-  console.log(`❌ Could not decode path: ${encodedPath} -> ${fallbackPath}`);
   return null;
 }
 

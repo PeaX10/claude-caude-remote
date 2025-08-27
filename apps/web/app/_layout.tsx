@@ -1,6 +1,6 @@
-import { Stack } from 'expo-router'
-import { StatusBar } from 'expo-status-bar'
-import { WebSocketProvider } from '../contexts/websocket-context'
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { WebSocketProvider } from "../contexts/websocket-context";
 
 export default function RootLayout() {
   return (
@@ -10,5 +10,5 @@ export default function RootLayout() {
       </Stack>
       <StatusBar style="auto" />
     </WebSocketProvider>
-  )
+  );
 }

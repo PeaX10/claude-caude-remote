@@ -1,12 +1,12 @@
-import { View, TextInput, TouchableOpacity, Text } from 'react-native'
-import { useState } from 'react'
-import { colors, spacing } from '../theme/colors'
+import { View, TextInput, TouchableOpacity, Text } from "react-native";
+import { useState } from "react";
+import { colors, spacing } from "../theme/colors";
 
 interface MessageInputProps {
-  inputText: string
-  onChangeText: (text: string) => void
-  onSend: () => void
-  isConnected: boolean
+  inputText: string;
+  onChangeText: (text: string) => void;
+  onSend: () => void;
+  isConnected: boolean;
 }
 
 const createInputStyles = () => ({
@@ -15,11 +15,11 @@ const createInputStyles = () => ({
     paddingVertical: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.border.primary,
-    minHeight: 48 + (spacing.lg * 2),
-    maxHeight: 192 + (spacing.lg * 2),
+    minHeight: 48 + spacing.lg * 2,
+    maxHeight: 192 + spacing.lg * 2,
   },
   inputWrapper: {
-    position: 'relative' as const,
+    position: "relative" as const,
   },
   textInput: {
     backgroundColor: colors.background.secondary,
@@ -32,43 +32,48 @@ const createInputStyles = () => ({
     borderWidth: 1,
     borderColor: colors.border.primary,
     lineHeight: 20,
-    textAlignVertical: 'top' as const,
+    textAlignVertical: "top" as const,
   },
   sendButton: {
-    position: 'absolute' as const,
+    position: "absolute" as const,
     right: spacing.md,
     bottom: spacing.md,
     width: 24,
     height: 24,
     borderRadius: 12,
     backgroundColor: colors.accent.primary,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
   },
   sendIcon: {
     fontSize: 12,
-    color: '#ffffff',
-    fontWeight: '600' as const,
+    color: "#ffffff",
+    fontWeight: "600" as const,
   },
-})
+});
 
-export function MessageInput({ inputText, onChangeText, onSend, isConnected }: MessageInputProps) {
-  const [height, setHeight] = useState(48)
+export function MessageInput({
+  inputText,
+  onChangeText,
+  onSend,
+  isConnected,
+}: MessageInputProps) {
+  const [height, setHeight] = useState(48);
 
   const handleContentSizeChange = (event: any) => {
-    const { height: contentHeight } = event.nativeEvent.contentSize
-    setHeight(Math.min(Math.max(contentHeight, 48), 192))
-  }
+    const { height: contentHeight } = event.nativeEvent.contentSize;
+    setHeight(Math.min(Math.max(contentHeight, 48), 192));
+  };
 
   const handleKeyPress = (event: any) => {
-    if (event.nativeEvent.key === 'Enter' && !event.nativeEvent.shiftKey) {
-      event.preventDefault()
-      onSend()
+    if (event.nativeEvent.key === "Enter" && !event.nativeEvent.shiftKey) {
+      event.preventDefault();
+      onSend();
     }
-  }
+  };
 
-  const styles = createInputStyles()
-  
+  const styles = createInputStyles();
+
   return (
     <View style={styles.inputContainer}>
       <View style={styles.inputWrapper}>
@@ -83,17 +88,17 @@ export function MessageInput({ inputText, onChangeText, onSend, isConnected }: M
           multiline
           scrollEnabled={height >= 192}
         />
-        {inputText.trim() && (
-          <TouchableOpacity 
+        {Boolean(inputText?.trim()) && (
+          <TouchableOpacity
             style={styles.sendButton}
             onPress={onSend}
             disabled={!isConnected}
             activeOpacity={0.7}
           >
-            <Text style={styles.sendIcon}>↑</Text>
+            <Text style={styles.sendIcon}>{"↑"}</Text>
           </TouchableOpacity>
         )}
       </View>
     </View>
-  )
+  );
 }

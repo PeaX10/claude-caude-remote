@@ -1,5 +1,6 @@
 import { View, Text, ScrollView } from 'react-native'
 import { ToolHeader } from '../shared/tool-header'
+import { ShimmerText } from '../shared/shimmer-text'
 import { terminalStyles, errorStyles } from '../../styles/tool-styles'
 import { colors } from '../../theme/colors'
 
@@ -11,6 +12,7 @@ interface BashToolRendererProps {
   hasResult: boolean
   hasError: boolean
   isInterrupted: boolean
+  isLoading?: boolean
   expanded: boolean
   onToggle: () => void
 }
@@ -23,6 +25,7 @@ export function BashToolRenderer({
   hasResult,
   hasError,
   isInterrupted,
+  isLoading = false,
   expanded,
   onToggle,
 }: BashToolRendererProps) {
@@ -34,13 +37,15 @@ export function BashToolRenderer({
     <>
       <ToolHeader
         name={name}
-        displayName={description}
+        displayName={isLoading && !hasResult ? description : description}
         preview={command ? `$ ${command}` : undefined}
         expanded={expanded}
         onToggle={onToggle}
         hasResult={hasResult}
         hasError={hasError}
         isInterrupted={isInterrupted}
+        isLoading={isLoading}
+        shimmerDisplayName={!hasResult}
       />
       
       {expanded && (
@@ -76,7 +81,17 @@ export function BashToolRenderer({
             
             {!hasResult && (
               <View style={runningStyles.container}>
-                <Text style={runningStyles.text}>Running...</Text>
+                <ShimmerText 
+                  style={runningStyles.text} 
+                  isActive={!hasResult}
+                >
+                  Running command...
+                </ShimmerText>
+                {command && (
+                  <Text style={runningStyles.commandText}>
+                    $ {command}
+                  </Text>
+                )}
               </View>
             )}
           </View>
@@ -94,5 +109,15 @@ const runningStyles = {
     fontSize: 12,
     color: colors.text.tertiary,
     fontStyle: 'italic' as const,
+  },
+  commandText: {
+    fontSize: 11,
+    color: colors.text.secondary,
+    fontFamily: 'monospace',
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: colors.background.tertiary,
+    borderRadius: 4,
   },
 }

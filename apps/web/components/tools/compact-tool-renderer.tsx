@@ -12,6 +12,7 @@ interface CompactToolRendererProps {
   hasResult: boolean
   hasError: boolean
   isInterrupted: boolean
+  isLoading?: boolean
 }
 
 export function CompactToolRenderer({
@@ -22,6 +23,7 @@ export function CompactToolRenderer({
   hasResult,
   hasError,
   isInterrupted,
+  isLoading = false,
 }: CompactToolRendererProps) {
   const filePath = input?.file_path || input?.path
   const fileName = filePath?.split('/').pop()
@@ -36,6 +38,8 @@ export function CompactToolRenderer({
         hasResult={hasResult}
         hasError={hasError}
         isInterrupted={isInterrupted}
+        isLoading={isLoading}
+        shimmerDisplayName={isLoading && !hasResult}
         showChevron={false}
       >
         {isEdit && input?.edits?.length && (

@@ -26,7 +26,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border.primary,
-    ...shadows.sm,
+    shadowColor: shadows.sm.shadowColor,
+    shadowOffset: shadows.sm.shadowOffset,
+    shadowOpacity: shadows.sm.shadowOpacity,
+    shadowRadius: shadows.sm.shadowRadius,
+    elevation: shadows.sm.elevation,
   },
   blur: {
     backgroundColor: colors.surface.glass,

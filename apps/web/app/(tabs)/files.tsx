@@ -190,7 +190,7 @@ export default function FilesScreen() {
             <Text style={styles.fileName}>{file.name}</Text>
             {file.size && (
               <Text style={styles.fileSize}>
-                {(file.size / 1024).toFixed(1)} KB
+                {Math.round(file.size / 1024)} KB
               </Text>
             )}
           </View>

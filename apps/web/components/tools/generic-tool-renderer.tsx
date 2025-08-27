@@ -1,6 +1,7 @@
 import { View, Text, ScrollView } from 'react-native'
 import { ToolHeader } from '../shared/tool-header'
 import { ErrorDisplay } from '../shared/error-display'
+import { ShimmerText } from '../shared/shimmer-text'
 import { colors, spacing } from '../../theme/colors'
 
 interface GenericToolRendererProps {
@@ -11,6 +12,7 @@ interface GenericToolRendererProps {
   hasResult: boolean
   hasError: boolean
   isInterrupted: boolean
+  isLoading?: boolean
   expanded: boolean
   onToggle: () => void
 }
@@ -23,6 +25,7 @@ export function GenericToolRenderer({
   hasResult,
   hasError,
   isInterrupted,
+  isLoading = false,
   expanded,
   onToggle,
 }: GenericToolRendererProps) {
@@ -47,12 +50,14 @@ export function GenericToolRenderer({
       <ToolHeader
         name={name}
         displayName={displayName}
-        preview={hasResult ? (hasError ? 'Error' : 'Complete') : undefined}
+        preview={isLoading ? 'Processing...' : hasResult ? (hasError ? 'Error' : 'Complete') : undefined}
+        isLoading={isLoading}
         expanded={expanded}
         onToggle={onToggle}
         hasResult={hasResult}
         hasError={hasError}
         isInterrupted={isInterrupted}
+        shimmerDisplayName={isLoading && !hasResult}
       />
       
       {expanded && (
@@ -77,7 +82,12 @@ export function GenericToolRenderer({
           
           {!hasResult && (
             <View style={styles.runningIndicator}>
-              <Text style={styles.runningText}>Processing...</Text>
+              <ShimmerText 
+                style={styles.runningText}
+                isActive={isLoading}
+              >
+                {isLoading ? 'Processing...' : 'Waiting for result...'}
+              </ShimmerText>
             </View>
           )}
         </View>

@@ -28,7 +28,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       <Sidebar 
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
-        socket={socket}
         onSelectSession={handleSelectSession}
       />
       <SafeAreaView style={styles.content}>

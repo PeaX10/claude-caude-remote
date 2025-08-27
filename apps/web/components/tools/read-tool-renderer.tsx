@@ -1,6 +1,7 @@
 import { View, Text } from 'react-native'
 import { ToolHeader } from '../shared/tool-header'
 import { SyntaxCodeViewer } from '../shared/syntax-code-viewer'
+import { ShimmerText } from '../shared/shimmer-text'
 import { colors, spacing } from '../../theme/colors'
 
 interface ReadToolRendererProps {
@@ -11,6 +12,7 @@ interface ReadToolRendererProps {
   hasResult: boolean
   hasError: boolean
   isInterrupted: boolean
+  isLoading?: boolean
   expanded: boolean
   onToggle: () => void
 }
@@ -23,6 +25,7 @@ export function ReadToolRenderer({
   hasResult,
   hasError,
   isInterrupted,
+  isLoading = false,
   expanded,
   onToggle,
 }: ReadToolRendererProps) {
@@ -36,12 +39,14 @@ export function ReadToolRenderer({
       <ToolHeader
         name={name}
         displayName={`${displayName} ${fileName}`}
-        preview={`${lineCount} lines read`}
+        preview={hasResult ? `${lineCount} lines read` : (isLoading ? 'Reading file...' : 'Waiting...')}
         expanded={expanded}
         onToggle={onToggle}
         hasResult={hasResult}
         hasError={hasError}
         isInterrupted={isInterrupted}
+        isLoading={isLoading}
+        shimmerDisplayName={isLoading && !hasResult}
       />
       
       {expanded && (
@@ -65,7 +70,12 @@ export function ReadToolRenderer({
           
           {!hasResult && (
             <View style={styles.runningIndicator}>
-              <Text style={styles.runningText}>Reading...</Text>
+              <ShimmerText 
+                style={styles.runningText}
+                isActive={isLoading}
+              >
+                {isLoading ? 'Reading file contents...' : 'Waiting for file access...'}
+              </ShimmerText>
             </View>
           )}
         </View>

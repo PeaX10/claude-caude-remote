@@ -32,9 +32,15 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 9876
 const claude = new ClaudeService()
 
+// Setup session update forwarding to WebSocket clients
+claude.on('session_updated', (data) => {
+  io.emit('claude_session_updated', data)
+})
+
 app.use(cors())
 app.use(express.json())
 
+// Health check endpoint
 app.get('/health', (_, res) => {
   res.json({ 
     status: 'ok', 
@@ -43,6 +49,7 @@ app.get('/health', (_, res) => {
   })
 })
 
+// Claude API endpoints
 app.post('/claude/start', (req, res) => {
   const { projectPath } = req.body
   const success = claude.start(projectPath)
@@ -59,6 +66,7 @@ app.get('/claude/status', (_, res) => {
   res.json(claude.getStatus())
 })
 
+// File system endpoints
 app.get('/files/*', async (req, res) => {
   try {
     const filePath = req.params[0] || '.'
@@ -115,6 +123,7 @@ app.delete('/files/*', async (req, res) => {
   }
 })
 
+// Git endpoints
 app.post('/git/status', async (req, res) => {
   try {
     const { stdout } = await execAsync('git status --porcelain -b')
@@ -155,6 +164,147 @@ app.post('/git/command', async (req, res) => {
   }
 })
 
+// Utility functions for socket handling
+function createSafeEmitter(socket: any) {
+  return (event: string, data: any) => {
+    try {
+      if (data === null || data === undefined || typeof data !== 'object') {
+        socket.emit(event, data)
+        return
+      }
+      
+      const safe = JSON.parse(JSON.stringify(data))
+      socket.emit(event, safe)
+    } catch (error) {
+      socket.emit(event, { error: 'Serialization error' })
+    }
+  }
+}
+
+function createClaudeHandlers(safeEmit: (event: string, data: any) => void) {
+  return {
+    handleOutput: (message: ClaudeMessage) => safeEmit('claude_output', message),
+    handleError: (error: any) => safeEmit('claude_error', { 
+      type: 'error', 
+      content: typeof error === 'string' ? error : error.message,
+      timestamp: Date.now() 
+    }),
+    handleStatus: (status: string) => {
+      const currentStatus = claude.getStatus()
+      safeEmit('claude_status_update', { 
+        type: 'status', 
+        content: status, 
+        timestamp: Date.now(),
+        status: {
+          isRunning: currentStatus.isRunning,
+          pid: currentStatus.pid,
+          currentSessionId: currentStatus.currentSessionId
+        }
+      })
+    },
+    handleSession: (data: any) => safeEmit('claude_session', data),
+    handleSystem: (data: any) => safeEmit('claude_system', data),
+    handleAssistant: (data: any) => safeEmit('claude_assistant', data),
+    handleUser: (data: any) => safeEmit('claude_user', data),
+    handleToolUse: (data: any) => safeEmit('claude_tool_use', data),
+    handleToolResult: (data: any) => safeEmit('claude_tool_result', data),
+    handleRaw: (data: any) => safeEmit('claude_raw', data),
+    handleContext: (data: any) => safeEmit('claude_context', data)
+  }
+}
+
+function setupClaudeListeners(claude: ClaudeService, handlers: any) {
+  claude.on('output', handlers.handleOutput)
+  claude.on('error', handlers.handleError)
+  claude.on('status', handlers.handleStatus)
+  claude.on('session', handlers.handleSession)
+  claude.on('system', handlers.handleSystem)
+  claude.on('assistant', handlers.handleAssistant)
+  claude.on('user', handlers.handleUser)
+  claude.on('tool_use', handlers.handleToolUse)
+  claude.on('tool_result', handlers.handleToolResult)
+  claude.on('raw', handlers.handleRaw)
+  claude.on('context', handlers.handleContext)
+}
+
+function cleanupClaudeListeners(claude: ClaudeService, handlers: any) {
+  claude.off('output', handlers.handleOutput)
+  claude.off('error', handlers.handleError)
+  claude.off('status', handlers.handleStatus)
+  claude.off('session', handlers.handleSession)
+  claude.off('system', handlers.handleSystem)
+  claude.off('assistant', handlers.handleAssistant)
+  claude.off('user', handlers.handleUser)
+  claude.off('tool_use', handlers.handleToolUse)
+  claude.off('tool_result', handlers.handleToolResult)
+  claude.off('raw', handlers.handleRaw)
+  claude.off('context', handlers.handleContext)
+}
+
+async function handleFileList(socket: any, data: any) {
+  try {
+    const requestPath = data?.path || '/'
+    
+    try {
+      const stats = await stat(requestPath)
+      if (!stats.isDirectory()) {
+        socket.emit('file_error', { error: 'Path is not a directory' })
+        return
+      }
+    } catch (e) {
+      socket.emit('file_error', { error: `Path does not exist: ${requestPath}` })
+      return
+    }
+    
+    const files = await readdir(requestPath, { withFileTypes: true })
+    const visibleFiles = files.filter(f => !f.name.startsWith('.'))
+    
+    const result = await Promise.all(
+      visibleFiles.map(async (file) => {
+        try {
+          const fullFilePath = path.join(requestPath, file.name)
+          const fileStats = await stat(fullFilePath)
+          return {
+            name: file.name,
+            type: file.isDirectory() ? 'directory' : 'file',
+            path: fullFilePath,
+            size: file.isFile() ? fileStats.size : undefined
+          }
+        } catch (e) {
+          return null
+        }
+      })
+    )
+    
+    const sortedResult = result
+      .filter(f => f !== null)
+      .sort((a, b) => {
+        if (a.type === 'directory' && b.type === 'file') return -1
+        if (a.type === 'file' && b.type === 'directory') return 1
+        return a.name.localeCompare(b.name)
+      })
+    
+    socket.emit('file_list_result', { files: sortedResult, path: requestPath })
+  } catch (error: any) {
+    socket.emit('file_error', { error: error.message })
+  }
+}
+
+async function handleGitCommand(socket: any, data: any) {
+  try {
+    const { command } = data
+    if (!command || !command.startsWith('git ')) {
+      socket.emit('git_error', { error: 'Invalid git command' })
+      return
+    }
+    const { stdout, stderr } = await execAsync(command)
+    socket.emit('git_result', { output: stdout, error: stderr, command })
+  } catch (error: any) {
+    socket.emit('git_error', { error: error.message, command: data.command })
+  }
+}
+
+// WebSocket connection handling
 io.on('connection', async (socket) => {
   const status = claude.getStatus()
   
@@ -165,83 +315,16 @@ io.on('connection', async (socket) => {
     socket.emit('claude_status', { isRunning: false, pid: null, currentSessionId: null })
   }
   
-  const handleOutput = (message: ClaudeMessage) => socket.emit('claude_output', message)
-  const handleError = (error: any) => socket.emit('claude_error', { 
-    type: 'error', 
-    content: typeof error === 'string' ? error : error.message,
-    timestamp: Date.now() 
-  })
-  const handleStatus = (status: string) => {
-    const currentStatus = claude.getStatus()
-    safeEmit('claude_status_update', { 
-      type: 'status', 
-      content: status, 
-      timestamp: Date.now(),
-      status: {
-        isRunning: currentStatus.isRunning,
-        pid: currentStatus.pid,
-        currentSessionId: currentStatus.currentSessionId
-      }
-    })
-  }
-  // Ensure all data sent through socket is serializable
-  const safeEmit = (event: string, data: any) => {
-    try {
-      // Handle different types of data
-      if (data === null || data === undefined) {
-        socket.emit(event, data)
-        return
-      }
-      
-      // For primitives, send as-is
-      if (typeof data !== 'object') {
-        socket.emit(event, data)
-        return
-      }
-      
-      // For objects, ensure they're serializable
-      const safe = JSON.parse(JSON.stringify(data))
-      socket.emit(event, safe)
-    } catch (error) {
-      socket.emit(event, { error: 'Serialization error' })
-    }
-  }
+  const safeEmit = createSafeEmitter(socket)
+  const handlers = createClaudeHandlers(safeEmit)
   
-  const handleSession = (data: any) => safeEmit('claude_session', data)
-  const handleSystem = (data: any) => safeEmit('claude_system', data)
-  const handleAssistant = (data: any) => safeEmit('claude_assistant', data)
-  const handleUser = (data: any) => safeEmit('claude_user', data)
-  const handleToolUse = (data: any) => safeEmit('claude_tool_use', data)
-  const handleToolResult = (data: any) => safeEmit('claude_tool_result', data)
-  const handleRaw = (data: any) => safeEmit('claude_raw', data)
-  const handleContext = (data: any) => safeEmit('claude_context', data)
-  
-  claude.on('output', handleOutput)
-  claude.on('error', handleError)
-  claude.on('status', handleStatus)
-  claude.on('session', handleSession)
-  claude.on('system', handleSystem)
-  claude.on('assistant', handleAssistant)
-  claude.on('user', handleUser)
-  claude.on('tool_use', handleToolUse)
-  claude.on('tool_result', handleToolResult)
-  claude.on('raw', handleRaw)
-  claude.on('context', handleContext)
+  setupClaudeListeners(claude, handlers)
   
   socket.on('disconnect', () => {
-    claude.off('output', handleOutput)
-    claude.off('error', handleError)
-    claude.off('status', handleStatus)
-    claude.off('session', handleSession)
-    claude.off('system', handleSystem)
-    claude.off('assistant', handleAssistant)
-    claude.off('user', handleUser)
-    claude.off('tool_use', handleToolUse)
-    claude.off('tool_result', handleToolResult)
-    claude.off('raw', handleRaw)
-    claude.off('context', handleContext)
+    cleanupClaudeListeners(claude, handlers)
   })
   
+  // Claude control events
   socket.on('claude_start', async (data) => {
     try {
       const projectRoot = path.resolve(__dirname, '../../../')
@@ -289,7 +372,6 @@ io.on('connection', async (socket) => {
   socket.on('claude_get_sessions', async () => {
     try {
       const sessions = await claude.getSessions()
-      // Force simple array of plain objects
       const safeSessions = sessions.map(s => ({
         id: String(s.id || ''),
         created_at: Number(s.created_at || 0),
@@ -337,71 +419,34 @@ io.on('connection', async (socket) => {
   
   socket.on('claude_get_session_history', async (data) => {
     try {
-      console.log('📖 Loading session history:', data)
       const history = await claude.getSessionHistory(data.sessionId, data.projectPath)
-      console.log(`📖 Found ${history.length} messages for session ${data.sessionId}`)
       socket.emit('claude_session_history', { sessionId: data.sessionId, history })
     } catch (error) {
-      console.error('❌ Error loading session history:', error)
       socket.emit('claude_session_history', { sessionId: data.sessionId, history: [] })
     }
   })
 
-  socket.on('file_list', async (data) => {
+  // Session file watching
+  socket.on('claude_watch_session', async (data) => {
     try {
-      const requestPath = data?.path || '/'
-      
-      // Check if path exists
-      try {
-        const stats = await stat(requestPath)
-        
-        if (!stats.isDirectory()) {
-          socket.emit('file_error', { error: 'Path is not a directory' })
-          return
-        }
-      } catch (e) {
-        socket.emit('file_error', { error: `Path does not exist: ${requestPath}` })
-        return
-      }
-      
-      // Read directory contents
-      const files = await readdir(requestPath, { withFileTypes: true })
-      
-      // Filter out hidden files (optional)
-      const visibleFiles = files.filter(f => !f.name.startsWith('.'))
-      
-      const result = await Promise.all(
-        visibleFiles.map(async (file) => {
-          try {
-            const fullFilePath = path.join(requestPath, file.name)
-            const fileStats = await stat(fullFilePath)
-            return {
-              name: file.name,
-              type: file.isDirectory() ? 'directory' : 'file',
-              path: fullFilePath, // Return full absolute path
-              size: file.isFile() ? fileStats.size : undefined
-            }
-          } catch (e) {
-            // Skip files we can't stat
-            return null
-          }
-        })
-      )
-      
-      // Filter out nulls and sort (directories first, then alphabetically)
-      const sortedResult = result
-        .filter(f => f !== null)
-        .sort((a, b) => {
-          if (a.type === 'directory' && b.type === 'file') return -1
-          if (a.type === 'file' && b.type === 'directory') return 1
-          return a.name.localeCompare(b.name)
-        })
-      
-      socket.emit('file_list_result', { files: sortedResult, path: requestPath })
-    } catch (error: any) {
-      socket.emit('file_error', { error: error.message })
+      await claude.watchSessionFile(data.sessionId, data.projectPath)
+      socket.emit('claude_session_watch_started', { sessionId: data.sessionId, projectPath: data.projectPath })
+    } catch (error) {
+      socket.emit('claude_session_watch_error', { sessionId: data.sessionId, error: error.message })
     }
   })
+
+  socket.on('claude_unwatch_session', (data) => {
+    try {
+      claude.stopWatchingSession(data.sessionId, data.projectPath)
+      socket.emit('claude_session_watch_stopped', { sessionId: data.sessionId, projectPath: data.projectPath })
+    } catch (error) {
+      // Silent error for unwatch
+    }
+  })
+
+  // File system events
+  socket.on('file_list', (data) => handleFileList(socket, data))
 
   socket.on('file_read', async (data) => {
     try {
@@ -412,25 +457,14 @@ io.on('connection', async (socket) => {
     }
   })
 
-  socket.on('git_command', async (data) => {
-    try {
-      const { command } = data
-      if (!command || !command.startsWith('git ')) {
-        socket.emit('git_error', { error: 'Invalid git command' })
-        return
-      }
-      const { stdout, stderr } = await execAsync(command)
-      socket.emit('git_result', { output: stdout, error: stderr, command })
-    } catch (error: any) {
-      socket.emit('git_error', { error: error.message, command: data.command })
-    }
-  })
-  
-  socket.on('disconnect', () => {})
+  // Git events
+  socket.on('git_command', (data) => handleGitCommand(socket, data))
 })
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server on port ${PORT}`)
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🚀 Server running on port ${PORT}`)
+  }
 }).on('error', (err: any) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`❌ Port ${PORT} is already in use!`)
@@ -444,10 +478,15 @@ server.listen(PORT, () => {
 })
 
 process.on('SIGINT', () => {
-  console.log('\n🛑 Shutting down server...')
   claude.stop()
   server.close(() => {
-    console.log('✅ Server closed')
+    process.exit(0)
+  })
+})
+
+process.on('SIGTERM', () => {
+  claude.stopAllWatchers()
+  server.close(() => {
     process.exit(0)
   })
 })

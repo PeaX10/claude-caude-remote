@@ -27,7 +27,7 @@ export default function StatusScreen() {
   const [showServerSettings, setShowServerSettings] = useState(false);
 
   const { isConnected, claudeStatus, startClaude, sendMessage } =
-    use-web-socket(serverUrl);
+    useWebSocket();
   const { currentModel, setCurrentModel, isClaudeRunning, clearMessages } =
     useStore();
 
@@ -313,7 +313,11 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderWidth: 1,
     borderColor: colors.border.primary,
-    ...shadows.lg,
+    shadowColor: shadows.lg.shadowColor,
+    shadowOffset: shadows.lg.shadowOffset,
+    shadowOpacity: shadows.lg.shadowOpacity,
+    shadowRadius: shadows.lg.shadowRadius,
+    elevation: shadows.lg.elevation,
   },
   modalTitle: {
     color: colors.text.primary,

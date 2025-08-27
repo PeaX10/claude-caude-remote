@@ -1,6 +1,7 @@
 import { View, Text, ScrollView } from 'react-native'
 import { ToolHeader } from '../shared/tool-header'
 import { ErrorDisplay } from '../shared/error-display'
+import { ShimmerText } from '../shared/shimmer-text'
 import { colors, spacing } from '../../theme/colors'
 
 interface MultiEditToolRendererProps {
@@ -11,6 +12,7 @@ interface MultiEditToolRendererProps {
   hasResult: boolean
   hasError: boolean
   isInterrupted: boolean
+  isLoading?: boolean
   expanded: boolean
   onToggle: () => void
 }
@@ -23,6 +25,7 @@ export function MultiEditToolRenderer({
   hasResult,
   hasError,
   isInterrupted,
+  isLoading = false,
   expanded,
   onToggle,
 }: MultiEditToolRendererProps) {
@@ -40,6 +43,8 @@ export function MultiEditToolRenderer({
         hasResult={hasResult}
         hasError={false}
         isInterrupted={false}
+        isLoading={isLoading}
+        shimmerDisplayName={isLoading && !hasResult}
         showChevron={false}
       >
         <View style={styles.changeIndicator}>
@@ -63,6 +68,8 @@ export function MultiEditToolRenderer({
         hasResult={hasResult}
         hasError={hasError}
         isInterrupted={isInterrupted}
+        isLoading={isLoading}
+        shimmerDisplayName={isLoading && !hasResult}
       >
         <View style={styles.changeIndicator}>
           <Text style={styles.changeText}>
@@ -83,7 +90,12 @@ export function MultiEditToolRenderer({
           
           {!hasResult && (
             <View style={styles.runningIndicator}>
-              <Text style={styles.runningText}>Editing...</Text>
+              <ShimmerText 
+                style={styles.runningText}
+                isActive={isLoading}
+              >
+                {isLoading ? 'Applying changes...' : 'Waiting...'}
+              </ShimmerText>
             </View>
           )}
         </View>

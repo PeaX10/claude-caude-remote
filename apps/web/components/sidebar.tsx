@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, Animated, Dimensions, Touchab
 import { Feather } from '@expo/vector-icons'
 import { colors, spacing } from '../theme/colors'
 import { useStore } from '../store'
+import { useWebSocket } from '../hooks/use-web-socket'
 
 interface Project {
   name: string
@@ -21,11 +22,10 @@ interface Session {
 interface SidebarProps {
   isOpen: boolean
   onToggle: () => void
-  socket: any
   onSelectSession: (sessionId: string, projectPath: string) => void
 }
 
-export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarProps) {
+export function Sidebar({ isOpen, onToggle, onSelectSession }: SidebarProps) {
   const [projects, setProjects] = useState<Project[]>([])
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
   const [projectSessions, setProjectSessions] = useState<{ [key: string]: Session[] }>({})
@@ -34,6 +34,7 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
   const overlayAnim = useState(new Animated.Value(isOpen ? 1 : 0))[0]
   const { width } = Dimensions.get('window')
   const { activeProjectPath, setActiveProject } = useStore()
+  const { socket, watchSession } = useWebSocket()
 
   useEffect(() => {
     Animated.parallel([
@@ -89,6 +90,8 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
     setActiveProject(projectPath, sessionId)
     onSelectSession(sessionId, projectPath)
     socket?.emit('claude_get_session_history', { sessionId, projectPath })
+    // Start watching session file for real-time updates
+    watchSession(sessionId, projectPath)
   }
 
   const formatDate = (timestamp: number) => {
@@ -145,7 +148,7 @@ export function Sidebar({ isOpen, onToggle, socket, onSelectSession }: SidebarPr
                     <View style={styles.activeIndicator} />
                   )}
                 </View>
-                <Text style={styles.sessionCount}>{project.sessions} {project.sessions === 1 ? 'session' : 'sessions'}</Text>
+                <Text style={styles.sessionCount}>{`${project.sessions} ${project.sessions === 1 ? 'session' : 'sessions'}`}</Text>
               </View>
             </TouchableOpacity>
             

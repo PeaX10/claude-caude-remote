@@ -1,14 +1,24 @@
-import { useState, useEffect, useRef } from 'react'
-import { View, ScrollView, TouchableOpacity, Text, KeyboardAvoidingView, Platform, Animated } from 'react-native'
-import { colors, spacing } from '../../theme/colors'
-import { useWebSocket } from '../../hooks/use-web-socket'
-import { useStore } from '../../store'
-import { useScrollHandler } from '../../hooks/use-scroll-handler'
-import { EmptyState } from '../../components/empty-state'
-import { ClaudeMessage } from '../../components/claude-message'
-import { ToolMessage } from '../../components/tool-message'
-import { MessageInput } from '../../components/message-input'
-import { TypingIndicator } from '../../components/typing-indicator'
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import {
+  View,
+  ScrollView,
+  TouchableOpacity,
+  Text,
+  KeyboardAvoidingView,
+  Platform,
+  Animated,
+} from "react-native";
+import { colors, spacing } from "../../theme/colors";
+import { useWebSocket } from "../../hooks/use-web-socket";
+import { useStore } from "../../store";
+import { useScrollHandler } from "../../hooks/use-scroll-handler";
+import { EmptyState } from "../../components/empty-state";
+import { ClaudeMessage } from "../../components/claude-message";
+import { ToolMessage } from "../../components/tool-message";
+import { MessageInput } from "../../components/message-input";
+import { TypingIndicator } from "../../components/typing-indicator";
+import { ToolTrackerDisplay } from "../../components/shared/tool-tracker-display";
+import { AgentStatusDisplay } from "../../components/agent-status-display";
 
 const createMainStyles = () => ({
   container: {
@@ -24,15 +34,15 @@ const createMainStyles = () => ({
     paddingBottom: spacing.lg,
   },
   scrollToBottomButton: {
-    position: 'absolute' as const,
+    position: "absolute" as const,
     right: spacing.md,
     bottom: 32,
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: colors.accent.primary,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
     shadowColor: colors.shadow.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
@@ -41,31 +51,50 @@ const createMainStyles = () => ({
   },
   scrollIcon: {
     fontSize: 20,
-    color: '#ffffff',
-    fontWeight: '600' as const,
+    color: "#ffffff",
+    fontWeight: "600" as const,
   },
-})
+  toolTrackerContainer: {
+    position: "absolute" as const,
+    top: spacing.sm,
+    left: spacing.sm,
+    right: spacing.sm,
+    zIndex: 1,
+  },
+  agentStatusContainer: {
+    position: "absolute" as const,
+    top: spacing.sm,
+    left: spacing.sm,
+    right: spacing.sm,
+    zIndex: 1,
+  },
+});
 
 export default function ChatScreen() {
-  const styles = createMainStyles()
-  const [inputText, setInputText] = useState('')
-  const [isTyping, setIsTyping] = useState(false)
-  const fadeAnim = useRef(new Animated.Value(1)).current
-  const slideAnim = useRef(new Animated.Value(0)).current
-  
-  const { 
-    isConnected, 
-    claudeStatus, 
-    messages, 
-    sendMessage, 
-    startClaude
-  } = useWebSocket()
-  
-  const { 
-    setConnected, 
-    setClaudeRunning 
-  } = useStore()
-  
+  const styles = createMainStyles();
+  const [inputText, setInputText] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  const {
+    isConnected,
+    claudeStatus,
+    messages,
+    sendMessage,
+    startClaude,
+    totalToolsUsed,
+    runningToolsCount,
+    lastThreeTools,
+    activeAgents,
+    completedAgents,
+    agentToolCounts,
+    getAgentToolIds,
+  } = useWebSocket();
+
+
+  const { setConnected, setClaudeRunning } = useStore();
+
   const {
     scrollViewRef,
     isAtBottom,
@@ -74,42 +103,93 @@ export default function ChatScreen() {
     checkIfAtBottom,
     scrollToBottom,
     handleLayout,
-    handleContentSizeChange
-  } = useScrollHandler()
+    handleContentSizeChange,
+  } = useScrollHandler();
 
   useEffect(() => {
-    setConnected(isConnected)
-    setClaudeRunning(claudeStatus.isRunning)
-  }, [isConnected, claudeStatus.isRunning])
+    setConnected(isConnected);
+    setClaudeRunning(claudeStatus.isRunning);
+  }, [isConnected, claudeStatus.isRunning]);
+
+  // Filter messages to hide individual tool executions that belong to completed agents
+  const filteredMessages = useMemo(() => {
+    const result = messages.filter((message) => {
+      // Don't filter if agent tracking is disabled
+      if (completedAgents.length === 0) {
+        return true;
+      }
+
+      // Check if this is a tool message that belongs to a completed agent
+      if (message.tool_use || message.tool_result) {
+        const toolId = message.tool_use?.id || message.tool_result?.tool_use_id;
+
+        if (toolId) {
+          const belongsToCompletedAgent = completedAgents.some((agent) => {
+            const agentToolIds = getAgentToolIds(agent.id);
+            return agentToolIds.includes(toolId);
+          });
+
+          return !belongsToCompletedAgent;
+        }
+      }
+
+      return true;
+    });
+
+    return result;
+  }, [messages, completedAgents, getAgentToolIds]);
+
+  // Further filter messages to exclude tool_result messages that have matching tool_use  
+  const displayableMessages = useMemo(() => {
+    return filteredMessages.filter((message, index) => {
+      if (message.tool_result) {
+        const matchingToolUse = filteredMessages
+          .slice(0, index)
+          .find(
+            (msg) =>
+              msg.tool_use &&
+              msg.tool_use.id === message.tool_result?.tool_use_id
+          );
+
+        return !matchingToolUse;
+      }
+      return true;
+    });
+  }, [filteredMessages]);
 
   useEffect(() => {
-    if (messages.length > 0 && isAtBottom) {
-      setTimeout(() => scrollToBottom(), 100)
+    if (displayableMessages.length > 0 && isAtBottom) {
+      setTimeout(() => scrollToBottom(), 100);
     }
-  }, [messages.length, isAtBottom])
+  }, [displayableMessages.length, isAtBottom]);
 
-  const handleSend = () => {
-    if (!inputText.trim()) return
-    
-    setIsTyping(true)
+  const handleSend = useCallback(() => {
+    if (!inputText.trim()) return;
+
+    setIsTyping(true);
 
     if (isConnected) {
-      sendMessage(inputText)
-      setTimeout(() => setIsTyping(false), 1500)
+      sendMessage(inputText);
+      setTimeout(() => setIsTyping(false), 1500);
     } else {
-      setIsTyping(false)
+      setIsTyping(false);
     }
 
-    setInputText('')
-  }
+    setInputText("");
+  }, [inputText, isConnected, sendMessage]);
 
-  const showScrollButton = !isAtBottom && contentHeight > scrollViewHeight + 100
+  const showScrollButton =
+    !isAtBottom && contentHeight > scrollViewHeight + 100;
+
+  const handleScrollToBottom = useCallback(() => {
+    scrollToBottom();
+  }, [scrollToBottom]);
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
     >
       <View style={styles.messagesContainer}>
         <ScrollView
@@ -131,57 +211,86 @@ export default function ChatScreen() {
               slideAnim={slideAnim}
             />
           ) : (
-            messages.map((message, index) => {
-              // Check if this is a tool_use message
-              if (message.tool_use) {
-                // Look for the next tool_result message
-                const nextMessage = messages[index + 1]
-                const hasResult = nextMessage && nextMessage.tool_result
-                
-                // Render unified tool message
+            <>
+              {displayableMessages.map((message, index) => {
+                // Check if this is a tool_use message
+                if (message.tool_use) {
+                  // Look for matching tool_result by ID (can be anywhere after this message)
+                  const matchingResult = displayableMessages
+                    .slice(index + 1)
+                    .find(
+                      (msg) =>
+                        msg.tool_result &&
+                        msg.tool_result.tool_use_id === message.tool_use?.id
+                    );
+
+                  // Render unified tool message
+                  return (
+                    <Animated.View
+                      key={index}
+                      style={{
+                        opacity: fadeAnim,
+                        transform: [{ translateY: slideAnim }],
+                      }}
+                    >
+                      <ToolMessage
+                        toolUse={message.tool_use}
+                        toolResult={matchingResult?.tool_result}
+                        timestamp={message.timestamp}
+                      />
+                    </Animated.View>
+                  );
+                }
+
+                // Render regular message (tool_result messages already filtered out)
                 return (
-                  <Animated.View 
+                  <ClaudeMessage
                     key={index}
-                    style={{
-                      opacity: fadeAnim, 
-                      transform: [{ translateY: slideAnim }]
-                    }}
-                  >
-                    <ToolMessage
-                      toolUse={message.tool_use}
-                      toolResult={hasResult ? nextMessage.tool_result : undefined}
-                      timestamp={message.timestamp}
-                    />
-                  </Animated.View>
-                )
-              }
-              
-              // Skip tool_result messages as they're already shown with their tool_use
-              if (message.tool_result && index > 0 && messages[index - 1].tool_use) {
-                return null
-              }
-              
-              return (
-                <ClaudeMessage
-                  key={index}
-                  message={message}
-                  fadeAnim={fadeAnim}
-                  slideAnim={slideAnim}
-                />
-              )
-            })
+                    message={message}
+                    fadeAnim={fadeAnim}
+                    slideAnim={slideAnim}
+                  />
+                );
+              })}
+            </>
           )}
-          
+
           {isTyping && <TypingIndicator />}
         </ScrollView>
+
+        {/* Agent Status Display */}
+        {(activeAgents.length > 0 || completedAgents.length > 0) && (
+          <View style={styles.agentStatusContainer}>
+            <AgentStatusDisplay
+              activeAgents={activeAgents}
+              completedAgents={completedAgents}
+              agentToolCounts={agentToolCounts}
+              getAgentToolIds={getAgentToolIds}
+            />
+          </View>
+        )}
+
+        {/* Tool Tracker Display */}
+        {totalToolsUsed > 0 &&
+          activeAgents.length === 0 &&
+          completedAgents.length === 0 && (
+            <View style={styles.toolTrackerContainer}>
+              <ToolTrackerDisplay
+                totalTools={totalToolsUsed}
+                runningCount={runningToolsCount}
+                lastThreeTools={lastThreeTools}
+                showCollapsed={true}
+              />
+            </View>
+          )}
 
         {showScrollButton && (
           <TouchableOpacity
             style={styles.scrollToBottomButton}
-            onPress={() => scrollToBottom()}
+            onPress={handleScrollToBottom}
             activeOpacity={0.8}
           >
-            <Text style={styles.scrollIcon}>↓</Text>
+            <Text style={styles.scrollIcon}>{"↓"}</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -193,5 +302,5 @@ export default function ChatScreen() {
         isConnected={isConnected}
       />
     </KeyboardAvoidingView>
-  )
+  );
 }

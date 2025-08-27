@@ -1,3 +1,4 @@
+import React from 'react'
 import { View, Animated } from 'react-native'
 import { 
   UserMessage, 
@@ -13,16 +14,20 @@ import { ToolMessage } from './tool-message'
 
 interface ClaudeMessage {
   type?: string
+  role?: string
+  content?: string | any[]
   human?: string
   assistant?: string
   system?: string
   tool_use?: {
     name: string
     input?: any
+    id?: string
   }
   tool_result?: {
     content?: string
     error?: string
+    tool_use_id?: string
   }
   context?: {
     type?: string
@@ -36,6 +41,7 @@ interface ClaudeMessage {
     cwd?: string
   }
   timestamp?: number
+  isLoading?: boolean
 }
 
 interface ClaudeMessageProps {
@@ -44,8 +50,24 @@ interface ClaudeMessageProps {
   slideAnim: Animated.Value
 }
 
-export function ClaudeMessage({ message, fadeAnim, slideAnim }: ClaudeMessageProps) {
+const ClaudeMessageComponent = ({ message, fadeAnim, slideAnim }: ClaudeMessageProps) => {
+  
   const renderMessage = () => {
+    
+    // Handle new message format with role and content
+    if (message.role === 'user' && message.content) {
+      const contentText = typeof message.content === 'string' ? message.content : 
+                         Array.isArray(message.content) ? message.content.filter(c => c && typeof c === 'string').join('') : ''
+      return <UserMessage content={contentText} timestamp={message.timestamp} />
+    }
+    
+    if (message.role === 'assistant' && message.content) {
+      const contentText = typeof message.content === 'string' ? message.content : 
+                         Array.isArray(message.content) ? message.content.filter(c => c && typeof c === 'string').join('') : ''
+      return <AssistantMessage content={contentText} timestamp={message.timestamp} />
+    }
+
+    // Legacy message format support
     // User message
     if (message.human) {
       return <UserMessage content={message.human} timestamp={message.timestamp} />
@@ -105,13 +127,24 @@ export function ClaudeMessage({ message, fadeAnim, slideAnim }: ClaudeMessagePro
           />
         )
       }
-      return <ToolMessage toolUse={message.tool_use} timestamp={message.timestamp} />
+      return (
+        <ToolMessage 
+          toolUse={message.tool_use} 
+          toolResult={message.tool_result}
+          isLoading={message.isLoading}
+          timestamp={message.timestamp} 
+        />
+      )
     }
     
-    // Tool result message
-    if (message.tool_result) {
-      // Show tool results in terminal style
-      return <ToolMessage toolResult={message.tool_result} timestamp={message.timestamp} />
+    // Tool result message (standalone - should be rare now with combined messages)
+    if (message.tool_result && !message.tool_use) {
+      return (
+        <ToolMessage 
+          toolResult={message.tool_result} 
+          timestamp={message.timestamp} 
+        />
+      )
     }
     
     // Context message
@@ -128,7 +161,9 @@ export function ClaudeMessage({ message, fadeAnim, slideAnim }: ClaudeMessagePro
   }
   
   const content = renderMessage()
-  if (!content) return null
+  if (!content) {
+    return null
+  }
   
   return (
     <Animated.View 
@@ -141,3 +176,12 @@ export function ClaudeMessage({ message, fadeAnim, slideAnim }: ClaudeMessagePro
     </Animated.View>
   )
 }
+
+// Memoized component to prevent unnecessary re-renders
+export const ClaudeMessage = React.memo(ClaudeMessageComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.message === nextProps.message &&
+    prevProps.fadeAnim === nextProps.fadeAnim &&
+    prevProps.slideAnim === nextProps.slideAnim
+  )
+})

@@ -55,6 +55,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
   }
 
   const renderMarkdownText = (text: string, key: number) => {
+    
     // Split into lines first to handle headings and lists
     const lines = text.split('\n')
     const formattedLines: React.ReactNode[] = []
@@ -94,7 +95,7 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
             currentStyle = 'link'
           } else if (part === '/LINK') {
             currentStyle = 'normal'
-          } else if (part && !part.startsWith('URL')) {
+          } else if (part && !part.startsWith('URL') && part.trim()) {
             const style = getTextStyle(currentStyle)
             elements.push(
               <Text key={`inline-${index}`} style={style}>
@@ -104,55 +105,81 @@ export function MarkdownRenderer({ content, style }: MarkdownRendererProps) {
           }
         })
         
-        return elements.length > 0 ? elements : [<Text key="text" style={styles.text}>{text}</Text>]
+        // Ensure all elements are wrapped in Text components and filter out empty ones
+        const validElements = elements.filter(el => el && (typeof el === 'string' || React.isValidElement(el)))
+        return validElements.length > 0 ? validElements : [<Text key="text" style={styles.text}>{text}</Text>]
       }
       
       // Check headings first (fixed to process before other patterns)
       if (line.startsWith('### ')) {
         formattedLines.push(
-          <Text key={`line-${key}-${lineIndex}`} style={styles.heading3}>
-            {processInlineStyles(line.substring(4))}
-          </Text>
+          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {processInlineStyles(line.substring(4)).map((element, idx) => (
+              React.cloneElement(element as React.ReactElement, {
+                key: idx,
+                style: [element.props.style, styles.heading3]
+              })
+            ))}
+          </View>
         )
       } else if (line.startsWith('## ')) {
         formattedLines.push(
-          <Text key={`line-${key}-${lineIndex}`} style={styles.heading2}>
-            {processInlineStyles(line.substring(3))}
-          </Text>
+          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {processInlineStyles(line.substring(3)).map((element, idx) => (
+              React.cloneElement(element as React.ReactElement, {
+                key: idx,
+                style: [element.props.style, styles.heading2]
+              })
+            ))}
+          </View>
         )
       } else if (line.startsWith('# ')) {
         formattedLines.push(
-          <Text key={`line-${key}-${lineIndex}`} style={styles.heading1}>
-            {processInlineStyles(line.substring(2))}
-          </Text>
+          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {processInlineStyles(line.substring(2)).map((element, idx) => (
+              React.cloneElement(element as React.ReactElement, {
+                key: idx,
+                style: [element.props.style, styles.heading1]
+              })
+            ))}
+          </View>
         )
       } else if (line.startsWith('- ') || line.startsWith('* ')) {
         formattedLines.push(
           <View key={`line-${key}-${lineIndex}`} style={styles.listItem}>
             <Text style={styles.listBullet}>•</Text>
-            <Text style={styles.text}>{processInlineStyles(line.substring(2))}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', flex: 1 }}>
+              {processInlineStyles(line.substring(2))}
+            </View>
           </View>
         )
       } else if (line.match(/^\d+\. /)) {
-        const number = line.match(/^(\d+)\. /)?.[1]
+        const number = line.match(/^(\d+)\. /)?.[1] || '1'
         formattedLines.push(
           <View key={`line-${key}-${lineIndex}`} style={styles.listItem}>
-            <Text style={styles.listNumber}>{number}.</Text>
-            <Text style={styles.text}>{processInlineStyles(line.replace(/^\d+\. /, ''))}</Text>
+            <Text style={styles.listNumber}>{`${number}.`}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', flex: 1 }}>
+              {processInlineStyles(line.replace(/^\d+\. /, ''))}
+            </View>
           </View>
         )
       } else if (line.startsWith('> ')) {
+        const blockquoteElements = processInlineStyles(line.substring(2))
         formattedLines.push(
           <View key={`line-${key}-${lineIndex}`} style={styles.blockquote}>
-            <Text style={styles.blockquoteText}>{processInlineStyles(line.substring(2))}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+              {blockquoteElements.map((element, idx) => (
+                <Text key={idx} style={styles.blockquoteText}>{element?.props?.children || element}</Text>
+              ))}
+            </View>
           </View>
         )
       } else if (line) {
         const elements = processInlineStyles(line)
         formattedLines.push(
-          <Text key={`line-${key}-${lineIndex}`} style={styles.text}>
+          <View key={`line-${key}-${lineIndex}`} style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {elements}
-          </Text>
+          </View>
         )
       }
     })

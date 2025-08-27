@@ -121,7 +121,7 @@ export function ChatHeader({ contextPercent, isConnected, claudeIsRunning, onRef
               fontWeight: getContextWeight(contextPercent) as any
             }
           ]}>
-            {contextPercent}%
+            {`${contextPercent}%`}
           </Text>
         )}
         {isConnected && claudeIsRunning && (

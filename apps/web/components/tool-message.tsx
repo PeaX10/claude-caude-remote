@@ -1,3 +1,4 @@
+import React from 'react'
 import { View } from 'react-native'
 import { useState } from 'react'
 import { commonToolStyles } from '../styles/tool-styles'
@@ -14,21 +15,24 @@ interface ToolMessageProps {
   toolUse?: {
     name: string
     input?: any
+    id?: string
   }
   toolResult?: {
     content?: string
     error?: string
+    tool_use_id?: string
   }
+  isLoading?: boolean
   timestamp?: number
 }
 
-export function ToolMessage({ toolUse, toolResult, timestamp }: ToolMessageProps) {
+const ToolMessageComponent = ({ toolUse, toolResult, isLoading = false, timestamp }: ToolMessageProps) => {
   const [expanded, setExpanded] = useState(false)
 
   if (!toolUse) return null
 
   const { name, input } = toolUse
-  const hasResult = toolResult !== undefined
+  const hasResult = toolResult !== undefined && !isLoading
   const hasError = !!toolResult?.error
   const interrupted = isInterrupted(toolResult?.error)
   const displayName = formatMCPToolName(name)
@@ -60,6 +64,7 @@ export function ToolMessage({ toolUse, toolResult, timestamp }: ToolMessageProps
       hasResult,
       hasError,
       isInterrupted: interrupted,
+      isLoading,
       expanded,
       onToggle: () => setExpanded(!expanded),
     }
@@ -84,3 +89,13 @@ export function ToolMessage({ toolUse, toolResult, timestamp }: ToolMessageProps
     </View>
   )
 }
+
+// Memoized component to prevent unnecessary re-renders
+export const ToolMessage = React.memo(ToolMessageComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.toolUse === nextProps.toolUse &&
+    prevProps.toolResult === nextProps.toolResult &&
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.timestamp === nextProps.timestamp
+  )
+})

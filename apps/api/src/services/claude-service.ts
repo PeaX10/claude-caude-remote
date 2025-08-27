@@ -3,7 +3,8 @@ import { spawn, ChildProcess } from "child_process";
 import { promisify } from "util";
 import { exec } from "child_process";
 import { randomUUID } from "crypto";
-import { readdir, readFile, stat } from "fs/promises";
+import { readdir, readFile, stat, watch } from "fs/promises";
+import { FSWatcher } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { decodeProjectPath } from '../utils/path-decoder';
@@ -30,12 +31,19 @@ interface ClaudeSession {
   cwd: string;
 }
 
+interface ProcessedContent {
+  content: string;
+  contextPercent: number | null;
+}
+
 export class ClaudeService extends EventEmitter {
   private currentSession: ClaudeSession | null = null;
   private activeProcess: ChildProcess | null = null;
   private sessions: Map<string, ClaudeSession> = new Map();
   private isProcessing = false;
   private messageBuffer = "";
+  private sessionWatchers: Map<string, FSWatcher> = new Map();
+  private lastFileSizes: Map<string, number> = new Map();
 
   constructor() {
     super();
@@ -46,7 +54,7 @@ export class ClaudeService extends EventEmitter {
       const sessionId = await this.startSession({ projectPath });
       return !!sessionId;
     } catch (error) {
-      console.error("❌ Failed to start:", error);
+      this.logError("Failed to start", error);
       return false;
     }
   }
@@ -58,37 +66,42 @@ export class ClaudeService extends EventEmitter {
     const { sessionId, projectPath = process.cwd() } = options;
 
     try {
-      let session: ClaudeSession;
-
-      if (sessionId && this.sessions.has(sessionId)) {
-        session = this.sessions.get(sessionId)!;
-        session.last_used = Date.now();
-        console.log(`📂 Resuming session: ${sessionId}`);
-      } else {
-        session = {
-          id: sessionId || randomUUID(),
-          created_at: Date.now(),
-          last_used: Date.now(),
-          cwd: projectPath,
-        };
-        this.sessions.set(session.id, session);
-        console.log(`🚀 Created new session: ${session.id}`);
-      }
-
+      const session = this.createOrResumeSession(sessionId, projectPath);
       this.currentSession = session;
       
-      this.emit("session", {
-        type: "system",
-        subtype: "session_start",
-        session_id: session.id,
-        timestamp: Date.now(),
-      } as ClaudeMessage);
-
+      this.emitSessionEvent(session);
       return session.id;
     } catch (error) {
-      console.error("❌ Failed to start session:", error);
+      this.logError("Failed to start session", error);
       throw error;
     }
+  }
+
+  private createOrResumeSession(sessionId?: string, projectPath?: string): ClaudeSession {
+    if (sessionId && this.sessions.has(sessionId)) {
+      const session = this.sessions.get(sessionId)!;
+      session.last_used = Date.now();
+      return session;
+    }
+
+    const session = {
+      id: sessionId || randomUUID(),
+      created_at: Date.now(),
+      last_used: Date.now(),
+      cwd: projectPath || process.cwd(),
+    };
+    
+    this.sessions.set(session.id, session);
+    return session;
+  }
+
+  private emitSessionEvent(session: ClaudeSession): void {
+    this.emit("session", {
+      type: "system",
+      subtype: "session_start",
+      session_id: session.id,
+      timestamp: Date.now(),
+    } as ClaudeMessage);
   }
 
   async sendMessage(message: string): Promise<boolean> {
@@ -97,7 +110,6 @@ export class ClaudeService extends EventEmitter {
     }
 
     if (this.isProcessing) {
-      console.warn("⚠️ Already processing a message");
       return false;
     }
 
@@ -105,166 +117,208 @@ export class ClaudeService extends EventEmitter {
     this.messageBuffer = "";
 
     try {
-      const args = [
-        "--print",
-        "--verbose", 
-        "--output-format", "stream-json",
-      ];
-
-      // Use --cwd to set the working directory
-      if (this.currentSession) {
-        args.push("--cwd", this.currentSession.cwd);
-      }
-
-      args.push(message);
-
-      console.log(`🚀 Executing: claude ${args.slice(0, -1).join(" ")} "..."`);
-
-      this.activeProcess = spawn("claude", args, {
-        cwd: this.currentSession?.cwd || process.cwd(),
-        env: { ...process.env },
-        shell: false,
-      });
-
-      this.activeProcess.stdout?.on("data", (data: Buffer) => {
-        const chunk = data.toString();
-        this.messageBuffer += chunk;
-        
-        const lines = this.messageBuffer.split("\n");
-        this.messageBuffer = lines.pop() || "";
-        
-        for (const line of lines) {
-          if (line.trim()) {
-            this.processJsonLine(line);
-          }
-        }
-      });
-
-      this.activeProcess.stderr?.on("data", (data: Buffer) => {
-        const error = data.toString();
-        console.error("⚠️ Claude stderr:", error);
-        
-        this.emit("error", {
-          type: "error",
-          content: error,
-          timestamp: Date.now(),
-          session_id: this.currentSession?.id,
-        } as ClaudeMessage);
-      });
-
-      this.activeProcess.on("exit", (code, signal) => {
-        console.log(`✅ Process exited with code ${code}, signal ${signal}`);
-        
-        if (this.messageBuffer.trim()) {
-          this.processJsonLine(this.messageBuffer);
-        }
-        
-        this.isProcessing = false;
-        this.activeProcess = null;
-        
-        this.emit("status", {
-          type: "status",
-          content: `completed`,
-          timestamp: Date.now(),
-          session_id: this.currentSession?.id,
-        } as ClaudeMessage);
-      });
-
-      this.activeProcess.on("error", (error) => {
-        console.error("❌ Process error:", error);
-        this.isProcessing = false;
-        this.activeProcess = null;
-        
-        this.emit("error", {
-          type: "error",
-          content: error.message,
-          timestamp: Date.now(),
-          session_id: this.currentSession?.id,
-        } as ClaudeMessage);
-      });
-
+      const process = this.spawnClaudeProcess(message);
+      this.setupProcessHandlers(process);
       return true;
     } catch (error: any) {
-      console.error("❌ Failed to send message:", error);
+      this.logError("Failed to send message", error);
       this.isProcessing = false;
       return false;
     }
+  }
+
+  private spawnClaudeProcess(message: string): ChildProcess {
+    const args = this.buildClaudeArgs(message);
+    
+    return spawn("claude", args, {
+      cwd: this.currentSession?.cwd || process.cwd(),
+      env: { ...process.env },
+      shell: false,
+    });
+  }
+
+  private buildClaudeArgs(message: string): string[] {
+    const args = [
+      "--print",
+      "--verbose", 
+      "--output-format", "stream-json",
+    ];
+
+    if (this.currentSession) {
+      args.push("--cwd", this.currentSession.cwd);
+    }
+
+    args.push(message);
+    return args;
+  }
+
+  private setupProcessHandlers(process: ChildProcess): void {
+    this.activeProcess = process;
+
+    process.stdout?.on("data", (data: Buffer) => {
+      this.handleStdoutData(data.toString());
+    });
+
+    process.stderr?.on("data", (data: Buffer) => {
+      this.handleStderrData(data.toString());
+    });
+
+    process.on("exit", (code, signal) => {
+      this.handleProcessExit(code, signal);
+    });
+
+    process.on("error", (error) => {
+      this.handleProcessError(error);
+    });
+  }
+
+  private handleStdoutData(chunk: string): void {
+    this.messageBuffer += chunk;
+    
+    const lines = this.messageBuffer.split("\n");
+    this.messageBuffer = lines.pop() || "";
+    
+    for (const line of lines) {
+      if (line.trim()) {
+        this.processJsonLine(line);
+      }
+    }
+  }
+
+  private handleStderrData(error: string): void {
+    this.emit("error", {
+      type: "error",
+      content: error,
+      timestamp: Date.now(),
+      session_id: this.currentSession?.id,
+    } as ClaudeMessage);
+  }
+
+  private handleProcessExit(code: number | null, signal: NodeJS.Signals | null): void {
+    if (this.messageBuffer.trim()) {
+      this.processJsonLine(this.messageBuffer);
+    }
+    
+    this.resetProcessState();
+    
+    this.emit("status", {
+      type: "status",
+      content: `completed`,
+      timestamp: Date.now(),
+      session_id: this.currentSession?.id,
+    } as ClaudeMessage);
+  }
+
+  private handleProcessError(error: Error): void {
+    this.logError("Process error", error);
+    this.resetProcessState();
+    
+    this.emit("error", {
+      type: "error",
+      content: error.message,
+      timestamp: Date.now(),
+      session_id: this.currentSession?.id,
+    } as ClaudeMessage);
+  }
+
+  private resetProcessState(): void {
+    this.isProcessing = false;
+    this.activeProcess = null;
   }
 
   private processJsonLine(line: string): void {
     try {
       const data = JSON.parse(line);
       
-      if (data.session_id && this.currentSession) {
-        this.currentSession.id = data.session_id;
-        this.sessions.set(data.session_id, this.currentSession);
-      }
-
+      this.updateSessionFromData(data);
+      
       const message: ClaudeMessage = {
         ...data,
         timestamp: Date.now(),
       };
-
-      console.log(`📨 Received: ${data.type}${data.subtype ? `:${data.subtype}` : ""}`);
       
-      switch (data.type) {
-        case "system":
-          this.emit("system", message);
-          if (data.subtype === "init") {
-            this.emit("context", {
-              tools: data.tools,
-              model: data.model,
-              session_id: data.session_id,
-            });
-          }
-          break;
-          
-        case "assistant":
-          this.emit("assistant", message);
-          if (data.message?.content?.[0]?.type === "text") {
-            this.emit("output", {
-              type: "assistant",
-              content: data.message.content[0].text,
-              timestamp: Date.now(),
-              session_id: data.session_id,
-            });
-          }
-          if (data.message?.content?.[0]?.type === "tool_use") {
-            this.emit("tool_use", {
-              tool: data.message.content[0].name,
-              input: data.message.content[0].input,
-              id: data.message.content[0].id,
-              session_id: data.session_id,
-            });
-          }
-          break;
-          
-        case "user":
-          this.emit("user", message);
-          if (data.message?.content?.[0]?.type === "tool_result") {
-            this.emit("tool_result", {
-              tool_use_id: data.message.content[0].tool_use_id,
-              content: data.message.content[0].content,
-              session_id: data.session_id,
-            });
-          }
-          break;
-          
-        default:
-          this.emit("message", message);
-      }
-
+      this.handleMessageByType(data, message);
       this.emit("raw", data);
 
     } catch (error) {
-      console.error("⚠️ Failed to parse JSON:", line.slice(0, 100));
+      this.handleParseError(line);
+    }
+  }
+
+  private updateSessionFromData(data: any): void {
+    if (data.session_id && this.currentSession) {
+      this.currentSession.id = data.session_id;
+      this.sessions.set(data.session_id, this.currentSession);
+    }
+  }
+
+  private handleMessageByType(data: any, message: ClaudeMessage): void {
+    switch (data.type) {
+      case "system":
+        this.handleSystemMessage(data, message);
+        break;
+      case "assistant":
+        this.handleAssistantMessage(data, message);
+        break;
+      case "user":
+        this.handleUserMessage(data, message);
+        break;
+      default:
+        this.emit("message", message);
+    }
+  }
+
+  private handleSystemMessage(data: any, message: ClaudeMessage): void {
+    this.emit("system", message);
+    if (data.subtype === "init") {
+      this.emit("context", {
+        tools: data.tools,
+        model: data.model,
+        session_id: data.session_id,
+      });
+    }
+  }
+
+  private handleAssistantMessage(data: any, message: ClaudeMessage): void {
+    this.emit("assistant", message);
+    
+    if (data.message?.content?.[0]?.type === "text") {
       this.emit("output", {
         type: "assistant",
-        content: line,
+        content: data.message.content[0].text,
         timestamp: Date.now(),
-        session_id: this.currentSession?.id,
-      } as ClaudeMessage);
+        session_id: data.session_id,
+      });
     }
+    
+    if (data.message?.content?.[0]?.type === "tool_use") {
+      this.emit("tool_use", {
+        tool: data.message.content[0].name,
+        input: data.message.content[0].input,
+        id: data.message.content[0].id,
+        session_id: data.session_id,
+      });
+    }
+  }
+
+  private handleUserMessage(data: any, message: ClaudeMessage): void {
+    this.emit("user", message);
+    if (data.message?.content?.[0]?.type === "tool_result") {
+      this.emit("tool_result", {
+        tool_use_id: data.message.content[0].tool_use_id,
+        content: data.message.content[0].content,
+        session_id: data.session_id,
+      });
+    }
+  }
+
+  private handleParseError(line: string): void {
+    this.emit("output", {
+      type: "assistant",
+      content: line,
+      timestamp: Date.now(),
+      session_id: this.currentSession?.id,
+    } as ClaudeMessage);
   }
 
   async interrupt(): Promise<boolean> {
@@ -276,7 +330,7 @@ export class ClaudeService extends EventEmitter {
       this.activeProcess.kill("SIGINT");
       return true;
     } catch (error) {
-      console.error("❌ Failed to interrupt:", error);
+      this.logError("Failed to interrupt", error);
       return false;
     }
   }
@@ -291,7 +345,6 @@ export class ClaudeService extends EventEmitter {
     return true;
   }
 
-
   async getProjects(): Promise<{name: string, path: string, sessions: number}[]> {
     try {
       const claudeDir = join(homedir(), '.claude', 'projects');
@@ -303,24 +356,18 @@ export class ClaudeService extends EventEmitter {
         const stats = await stat(projectPath);
         
         if (stats.isDirectory()) {
-          // Count sessions in this project
           const files = await readdir(projectPath);
           const sessionCount = files.filter(f => f.endsWith('.jsonl')).length;
-          
-          // Use our smart decoder to find the real path
           const realPath = decodeProjectPath(project);
           
-          // Only add projects that exist on the filesystem
           if (realPath) {
-            // Extract a meaningful project name from the path
             const pathParts = realPath.split('/');
             const name = pathParts[pathParts.length - 1] || project;
             
-            // Use encoded path as ID to ensure uniqueness
             projectList.push({
               name: name,
               path: realPath,
-              encodedPath: project, // Keep original for uniqueness
+              encodedPath: project,
               sessions: sessionCount
             });
           }
@@ -329,7 +376,7 @@ export class ClaudeService extends EventEmitter {
       
       return projectList;
     } catch (error) {
-      console.error('📂 Error reading projects:', error);
+      this.logError('Error reading projects', error);
       return [];
     }
   }
@@ -349,7 +396,6 @@ export class ClaudeService extends EventEmitter {
         const filePath = join(claudeProjectDir, file);
         const stats = await stat(filePath);
         
-        // Read first line to get session info
         const content = await readFile(filePath, 'utf-8');
         const firstLine = content.split('\n')[0];
         let title = sessionId.slice(0, 8);
@@ -370,7 +416,7 @@ export class ClaudeService extends EventEmitter {
         } as any);
       }
     } catch (error) {
-      console.error('📋 Error reading project sessions:', error);
+      this.logError('Error reading project sessions', error);
     }
     
     return sessions.sort((a, b) => b.last_used - a.last_used);
@@ -380,53 +426,38 @@ export class ClaudeService extends EventEmitter {
     const sessions: ClaudeSession[] = [];
     
     try {
-      // Get project-specific directory path
       const projectPath = this.currentSession?.cwd || process.cwd();
       const projectDirName = projectPath.replace(/\//g, '-');
       const claudeProjectDir = join(homedir(), '.claude', 'projects', projectDirName);
       
-      console.log('📂 Looking for sessions in:', claudeProjectDir);
-      
-      // Check if directory exists
       try {
         await stat(claudeProjectDir);
       } catch {
-        console.log('📂 No project directory found');
         return sessions;
       }
       
-      // Read all JSONL files in the project directory
       const files = await readdir(claudeProjectDir);
       const jsonlFiles = files.filter(f => f.endsWith('.jsonl'));
       
-      console.log(`📋 Found ${jsonlFiles.length} session files`);
-      
-      // Get metadata for each session
       for (const file of jsonlFiles) {
         const sessionId = file.replace('.jsonl', '');
         const filePath = join(claudeProjectDir, file);
         const stats = await stat(filePath);
         
-        sessions.push({
+        const session = {
           id: sessionId,
           created_at: stats.birthtime.getTime(),
           last_used: stats.mtime.getTime(),
           cwd: projectPath
-        });
+        };
         
-        // Also store in our map for quick access
-        this.sessions.set(sessionId, {
-          id: sessionId,
-          created_at: stats.birthtime.getTime(),
-          last_used: stats.mtime.getTime(),
-          cwd: projectPath
-        });
+        sessions.push(session);
+        this.sessions.set(sessionId, session);
       }
     } catch (error) {
-      console.error("📋 Error reading sessions:", error);
+      this.logError("Error reading sessions", error);
     }
     
-    // Sort by last used
     return sessions.sort((a, b) => b.last_used - a.last_used);
   }
 
@@ -436,26 +467,116 @@ export class ClaudeService extends EventEmitter {
       const projectDirName = path.replace(/\//g, '-');
       const sessionFile = join(homedir(), '.claude', 'projects', projectDirName, `${sessionId}.jsonl`);
       
-      console.log(`📖 Reading session file: ${sessionFile}`);
       const content = await readFile(sessionFile, 'utf-8');
       const lines = content.split('\n').filter(line => line.trim());
-      console.log(`📖 Found ${lines.length} lines in session file`);
       
       const messages = lines.map(line => {
         try {
           return JSON.parse(line);
         } catch (e) {
-          console.log('❌ Failed to parse line:', line);
           return null;
         }
       }).filter(msg => msg !== null);
       
-      console.log(`📖 Parsed ${messages.length} valid messages`);
       return messages;
     } catch (error) {
-      console.error('❌ Error reading session history:', error);
+      this.logError('Error reading session history', error);
       return [];
     }
+  }
+
+  async watchSessionFile(sessionId: string, projectPath: string): Promise<void> {
+    try {
+      const projectDirName = projectPath.replace(/\//g, '-');
+      const sessionFile = join(homedir(), '.claude', 'projects', projectDirName, `${sessionId}.jsonl`);
+      const watchKey = `${sessionId}-${projectPath}`;
+      
+      this.stopWatchingSession(sessionId, projectPath);
+      
+      try {
+        const initialStats = await stat(sessionFile);
+        this.lastFileSizes.set(watchKey, initialStats.size);
+      } catch (e) {
+        this.lastFileSizes.set(watchKey, 0);
+      }
+      
+      const fs = require('fs');
+      const watcher = fs.watch(sessionFile, { persistent: false }, async (eventType: string) => {
+        if (eventType === 'change') {
+          await this.handleFileChange(sessionFile, watchKey, sessionId, projectPath);
+        }
+      });
+      
+      this.sessionWatchers.set(watchKey, watcher);
+      
+    } catch (error) {
+      this.logError('Error setting up session file watcher', error);
+    }
+  }
+
+  private async handleFileChange(sessionFile: string, watchKey: string, sessionId: string, projectPath: string): Promise<void> {
+    try {
+      const stats = await stat(sessionFile);
+      const lastSize = this.lastFileSizes.get(watchKey) || 0;
+      
+      if (stats.size > lastSize) {
+        this.lastFileSizes.set(watchKey, stats.size);
+        
+        const newMessages = await this.getNewMessages(sessionFile, lastSize);
+        if (newMessages.length > 0) {
+          this.emit('session_updated', { sessionId, projectPath, newMessages });
+        }
+      }
+    } catch (error) {
+      this.logError('Error processing session file change', error);
+    }
+  }
+
+  private async getNewMessages(sessionFile: string, fromByte: number): Promise<any[]> {
+    try {
+      const fs = require('fs');
+      const buffer = Buffer.alloc(1024 * 1024);
+      const fileHandle = await fs.promises.open(sessionFile, 'r');
+      
+      const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, fromByte);
+      await fileHandle.close();
+      
+      if (bytesRead === 0) return [];
+      
+      const newContent = buffer.subarray(0, bytesRead).toString('utf-8');
+      const lines = newContent.split('\n').filter(line => line.trim());
+      
+      return lines.map(line => {
+        try {
+          return JSON.parse(line);
+        } catch (e) {
+          return null;
+        }
+      }).filter(msg => msg !== null);
+      
+    } catch (error) {
+      this.logError('Error reading new messages', error);
+      return [];
+    }
+  }
+
+  stopWatchingSession(sessionId: string, projectPath: string): void {
+    const watchKey = `${sessionId}-${projectPath}`;
+    const watcher = this.sessionWatchers.get(watchKey);
+    
+    if (watcher) {
+      watcher.close();
+      this.sessionWatchers.delete(watchKey);
+      this.lastFileSizes.delete(watchKey);
+    }
+  }
+
+  stopAllWatchers(): void {
+    this.sessionWatchers.forEach((watcher) => {
+      watcher.close();
+    });
+    this.sessionWatchers.clear();
+    this.lastFileSizes.clear();
   }
 
   async getAvailableCommands(): Promise<string[]> {
@@ -488,11 +609,18 @@ export class ClaudeService extends EventEmitter {
     return "";
   }
 
-  public processRawOutput(content: string): { content: string; contextPercent: number | null } {
+  public processRawOutput(content: string): ProcessedContent {
     return { content, contextPercent: null };
   }
 
-  filterClaudeOutput(content: string): { content: string; contextPercent: number | null } {
+  filterClaudeOutput(content: string): ProcessedContent {
     return { content, contextPercent: null };
+  }
+
+  private logError(message: string, error: any): void {
+    // Only log errors in development, or provide a way to configure this
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`❌ ${message}:`, error);
+    }
   }
 }
