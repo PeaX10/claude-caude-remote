@@ -178,6 +178,10 @@ class ProjectStoreClass {
     this.notifyListeners();
   }
 
+  setProjectBaseBranch(projectId: string, baseBranch: string) {
+    this.updateProject(projectId, { baseBranch });
+  }
+
   addTab(
     projectId: string,
     tabData: Omit<SessionTab, "id" | "createdAt" | "updatedAt">
@@ -505,6 +509,7 @@ export function useProjectStore() {
       removeProject: storeInstance.removeProject.bind(storeInstance),
       setActiveProject: storeInstance.setActiveProject.bind(storeInstance),
       updateProject: storeInstance.updateProject.bind(storeInstance),
+      setProjectBaseBranch: storeInstance.setProjectBaseBranch.bind(storeInstance),
       addTab: storeInstance.addTab.bind(storeInstance),
       removeTab: storeInstance.removeTab.bind(storeInstance),
       setActiveTab: storeInstance.setActiveTab.bind(storeInstance),

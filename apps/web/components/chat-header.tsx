@@ -1,8 +1,7 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { colors, spacing } from "../theme/colors";
 import { BurgerMenu } from "./burger-menu";
-import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { BranchIndicator } from "./branch-indicator";
 
 interface ChatHeaderProps {
   contextPercent: number | null;
@@ -39,6 +38,7 @@ const createHeaderStyles = () => ({
   headerLeft: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
+    gap: spacing.sm,
   },
   menuButton: {
     marginRight: spacing.md,
@@ -123,13 +123,13 @@ export function ChatHeader({
   projectName,
 }: ChatHeaderProps) {
   const styles = createHeaderStyles();
-  const router = useRouter();
 
   return (
     <View style={styles.header}>
       <View style={styles.headerLeft}>
         <BurgerMenu isOpen={sidebarOpen} onPress={onToggleSidebar} />
         <Text style={styles.headerTitle}>{projectName || "Claude Code Remote"}</Text>
+        {projectName && <BranchIndicator />}
       </View>
       <View style={styles.headerActions}>
         {contextPercent !== null && claudeIsRunning && (
@@ -154,13 +154,6 @@ export function ChatHeader({
             <Text style={styles.refreshIcon}>↻</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          style={styles.settingsButton}
-          onPress={() => router.push('./status')}
-          activeOpacity={0.7}
-        >
-          <Feather name="settings" size={18} color={colors.text.tertiary} />
-        </TouchableOpacity>
         <View style={styles.statusIndicator}>
           <View
             style={[

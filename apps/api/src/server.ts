@@ -461,6 +461,199 @@ io.on('connection', async (socket) => {
 
   // Git events
   socket.on('git_command', (data) => handleGitCommand(socket, data))
+  
+  socket.on('git_status', async (data) => {
+    try {
+      const projectPath = data?.projectPath || process.cwd()
+      
+      // Get current branch
+      const { stdout: branch } = await execAsync(`cd ${projectPath} && git rev-parse --abbrev-ref HEAD`)
+      
+      // Get status with porcelain format for parsing
+      const { stdout: statusOutput } = await execAsync(`cd ${projectPath} && git status --porcelain`)
+      
+      const files = statusOutput.split('\n')
+        .filter(line => line.length > 0)
+        .map(line => {
+          const status = line.substring(0, 2)
+          const path = line.substring(3)
+          
+          return {
+            path,
+            status: status[1] || status[0], // Use index status if available, otherwise working tree
+            staged: status[0] !== ' ' && status[0] !== '?',
+          }
+        })
+      
+      socket.emit('git_status_result', {
+        branch: branch.trim(),
+        files
+      })
+    } catch (error: any) {
+      socket.emit('git_status_result', {
+        error: error.message,
+        branch: 'main',
+        files: []
+      })
+    }
+  })
+  
+  socket.on('git_log', async (data) => {
+    try {
+      const projectPath = data?.projectPath || process.cwd()
+      const targetBranch = data?.branch || 'develop'
+      
+      // Get current branch
+      const { stdout: currentBranch } = await execAsync(`cd ${projectPath} && git rev-parse --abbrev-ref HEAD`)
+      
+      // Get commits with more details
+      const { stdout: logOutput } = await execAsync(
+        `cd ${projectPath} && git log --pretty=format:"%H|%s|%an|%ad" --date=short -20`
+      )
+      
+      // Get commits that are ahead of target branch
+      let aheadCommits: string[] = []
+      try {
+        const { stdout: aheadOutput } = await execAsync(
+          `cd ${projectPath} && git rev-list ${targetBranch}..HEAD --pretty=format:"%H" --no-patch`
+        )
+        aheadCommits = aheadOutput.split('\n').filter(h => h.length > 0)
+      } catch (e) {
+        // Branch comparison failed, assume all commits are ahead
+      }
+      
+      const commits = await Promise.all(
+        logOutput.split('\n')
+          .filter(line => line.length > 0)
+          .map(async (line) => {
+            const [hash, message, author, date] = line.split('|')
+            
+            // Get files changed in this commit
+            let files: any[] = []
+            try {
+              const { stdout: diffOutput } = await execAsync(
+                `cd ${projectPath} && git diff-tree --no-commit-id --name-status -r ${hash}`
+              )
+              files = diffOutput.split('\n')
+                .filter(line => line.length > 0)
+                .map(line => {
+                  const [status, ...pathParts] = line.split('\t')
+                  return {
+                    path: pathParts.join('\t'),
+                    status
+                  }
+                })
+            } catch (e) {
+              // Failed to get files for this commit
+            }
+            
+            return {
+              hash: hash.substring(0, 8),
+              fullHash: hash,
+              message,
+              author,
+              date,
+              isAhead: aheadCommits.includes(hash),
+              files
+            }
+          })
+      )
+      
+      socket.emit('git_log_result', {
+        branch: currentBranch.trim(),
+        commits
+      })
+    } catch (error: any) {
+      socket.emit('git_log_result', {
+        error: error.message,
+        branch: 'main',
+        commits: []
+      })
+    }
+  })
+  
+  socket.on('git_diff', async (data) => {
+    try {
+      const projectPath = data?.projectPath || process.cwd()
+      const targetBranch = data?.targetBranch || 'develop'
+      
+      // Get current branch
+      const { stdout: currentBranch } = await execAsync(`cd ${projectPath} && git rev-parse --abbrev-ref HEAD`)
+      
+      // Get ahead/behind counts
+      let ahead = 0, behind = 0
+      try {
+        const { stdout: aheadOutput } = await execAsync(
+          `cd ${projectPath} && git rev-list --count ${targetBranch}..HEAD`
+        )
+        ahead = parseInt(aheadOutput.trim()) || 0
+        
+        const { stdout: behindOutput } = await execAsync(
+          `cd ${projectPath} && git rev-list --count HEAD..${targetBranch}`
+        )
+        behind = parseInt(behindOutput.trim()) || 0
+      } catch (e) {
+        // Branch comparison failed
+      }
+      
+      // Get files that differ between branches
+      let diffFiles: any[] = []
+      try {
+        const { stdout: diffOutput } = await execAsync(
+          `cd ${projectPath} && git diff --name-status ${targetBranch}...HEAD`
+        )
+        
+        diffFiles = diffOutput.split('\n')
+          .filter(line => line.length > 0)
+          .map(line => {
+            const [status, ...pathParts] = line.split('\t')
+            return {
+              path: pathParts.join('\t'),
+              status
+            }
+          })
+      } catch (e) {
+        // Diff failed
+      }
+      
+      socket.emit('git_diff_result', {
+        branch: currentBranch.trim(),
+        diff: {
+          ahead,
+          behind,
+          files: diffFiles
+        }
+      })
+    } catch (error: any) {
+      socket.emit('git_diff_result', {
+        error: error.message,
+        branch: 'main',
+        diff: {
+          ahead: 0,
+          behind: 0,
+          files: []
+        }
+      })
+    }
+  })
+  
+  socket.on('git_branch', async (data) => {
+    try {
+      const projectPath = data?.projectPath || process.cwd()
+      
+      // Get current branch
+      const { stdout: branch } = await execAsync(`cd ${projectPath} && git rev-parse --abbrev-ref HEAD`)
+      
+      socket.emit('git_branch_result', {
+        branch: branch.trim()
+      })
+    } catch (error: any) {
+      socket.emit('git_branch_result', {
+        error: error.message,
+        branch: 'main'
+      })
+    }
+  })
 })
 
 server.listen(PORT, () => {

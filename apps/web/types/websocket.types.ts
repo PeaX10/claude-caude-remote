@@ -25,6 +25,10 @@ export interface WebSocketContextType {
   isSessionHistoryLoading: (sessionId: string) => boolean
   justLoadedSessionId: string | null
   getAvailableSessions: (projectPath?: string) => void
+  getGitStatus: (projectPath?: string) => Promise<any>
+  getGitLog: (projectPath?: string, branch?: string) => Promise<any>
+  getGitDiff: (projectPath?: string, targetBranch?: string) => Promise<any>
+  getCurrentBranch: (projectPath?: string) => Promise<any>
   totalToolsUsed: number
   runningToolsCount: number
   lastThreeTools: ToolExecution[]

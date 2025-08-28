@@ -802,6 +802,78 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     [socket, getActiveProject]
   );
 
+  const getGitStatus = useCallback(
+    (projectPath?: string) => {
+      const pathToUse = projectPath || getActiveProject()?.path;
+      if (socket?.connected && pathToUse) {
+        return new Promise((resolve) => {
+          const handler = (data: any) => {
+            resolve(data);
+            socket.off("git_status_result", handler);
+          };
+          socket.on("git_status_result", handler);
+          socket.emit("git_status", { projectPath: pathToUse });
+        });
+      }
+      return Promise.resolve(null);
+    },
+    [socket, getActiveProject]
+  );
+
+  const getGitLog = useCallback(
+    (projectPath?: string, branch?: string) => {
+      const pathToUse = projectPath || getActiveProject()?.path;
+      if (socket?.connected && pathToUse) {
+        return new Promise((resolve) => {
+          const handler = (data: any) => {
+            resolve(data);
+            socket.off("git_log_result", handler);
+          };
+          socket.on("git_log_result", handler);
+          socket.emit("git_log", { projectPath: pathToUse, branch });
+        });
+      }
+      return Promise.resolve(null);
+    },
+    [socket, getActiveProject]
+  );
+
+  const getGitDiff = useCallback(
+    (projectPath?: string, targetBranch: string = "develop") => {
+      const pathToUse = projectPath || getActiveProject()?.path;
+      if (socket?.connected && pathToUse) {
+        return new Promise((resolve) => {
+          const handler = (data: any) => {
+            resolve(data);
+            socket.off("git_diff_result", handler);
+          };
+          socket.on("git_diff_result", handler);
+          socket.emit("git_diff", { projectPath: pathToUse, targetBranch });
+        });
+      }
+      return Promise.resolve(null);
+    },
+    [socket, getActiveProject]
+  );
+
+  const getCurrentBranch = useCallback(
+    (projectPath?: string) => {
+      const pathToUse = projectPath || getActiveProject()?.path;
+      if (socket?.connected && pathToUse) {
+        return new Promise((resolve) => {
+          const handler = (data: any) => {
+            resolve(data);
+            socket.off("git_branch_result", handler);
+          };
+          socket.on("git_branch_result", handler);
+          socket.emit("git_branch", { projectPath: pathToUse });
+        });
+      }
+      return Promise.resolve(null);
+    },
+    [socket, getActiveProject]
+  );
+
   return (
     <WebSocketContext.Provider
       value={{
@@ -817,6 +889,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         runGitCommand,
         watchSession,
         unwatchSession,
+        getGitStatus,
+        getGitLog,
+        getGitDiff,
+        getCurrentBranch,
         loadSessionHistory,
         isSessionHistoryLoading,
         justLoadedSessionId,

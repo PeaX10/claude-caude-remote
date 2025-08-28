@@ -26,6 +26,7 @@ export interface Project {
   tabs: SessionTab[]
   activeTabId?: string
   stats?: ProjectStats
+  baseBranch?: string
   lastAccessedAt: Date
 }
 
