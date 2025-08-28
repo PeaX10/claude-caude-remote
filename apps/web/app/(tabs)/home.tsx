@@ -9,15 +9,11 @@ import {
 import { useRouter } from 'expo-router';
 import { useProjectStore } from '../../store/project-store';
 import { Feather } from '@expo/vector-icons';
-import { useDemoProjects } from '../../hooks/use-demo-projects';
 import { colors, spacing } from '../../theme/colors';
 
 export default function HomePage() {
   const router = useRouter();
   const { projects, recentSessions, setActiveProject, addTab, setActiveTab } = useProjectStore();
-  
-  // Initialize demo projects if needed
-  useDemoProjects();
   
   // Clear active project when on home page
   useEffect(() => {

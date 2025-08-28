@@ -80,20 +80,25 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
-  
-  const { activeProjectId, getActiveProject, addTab, recentSessions } = useProjectStore();
+
+  const { activeProjectId, getActiveProject, addTab, recentSessions } =
+    useProjectStore();
   const activeProject = getActiveProject();
-  
+
   // Redirect to home if no active project
   useEffect(() => {
-    if (!activeProjectId) {
-      router.push('/(tabs)/home');
-    }
+    // Add a small delay to ensure router is mounted
+    const timer = setTimeout(() => {
+      if (!activeProjectId && router.canGoBack !== undefined) {
+        router.push("/(tabs)/home");
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [activeProjectId, router]);
-  
-  // Get active session from active tab
+
   const activeSessionId = activeProject?.tabs.find(
-    tab => tab.id === activeProject.activeTabId
+    (tab) => tab.id === activeProject.activeTabId
   )?.sessionId;
 
   const {
@@ -110,7 +115,6 @@ export default function ChatScreen() {
     agentToolCounts,
     getAgentToolIds,
   } = useWebSocket();
-
 
   const { setConnected, setClaudeRunning } = useStore();
 
@@ -158,7 +162,7 @@ export default function ChatScreen() {
     return result;
   }, [messages, completedAgents, getAgentToolIds]);
 
-  // Further filter messages to exclude tool_result messages that have matching tool_use  
+  // Further filter messages to exclude tool_result messages that have matching tool_use
   const displayableMessages = useMemo(() => {
     return filteredMessages.filter((message, index) => {
       if (message.tool_result) {
@@ -207,7 +211,7 @@ export default function ChatScreen() {
   if (!activeProject) {
     return null;
   }
-  
+
   return (
     <KeyboardAvoidingView
       style={styles.container}

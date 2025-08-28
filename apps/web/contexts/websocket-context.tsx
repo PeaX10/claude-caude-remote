@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useRef } from 'react'
-import { io, Socket } from 'socket.io-client'
+// Alternative import method to avoid engine.parse error
+const io = require('socket.io-client')
+import type { Socket } from 'socket.io-client'
 import { useToolTracker } from '../hooks/use-tool-tracker'
 import { useProjectStore } from '../store/project-store'
 import type { ClaudeStatus, WebSocketContextType } from '../types/websocket.types'
@@ -12,25 +14,25 @@ const WebSocketContext = createContext<WebSocketContextType | null>(null)
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [socket, setSocket] = useState<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
-  const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus>({ 
-    isRunning: false, 
+  const [claudeStatus, setClaudeStatus] = useState<ClaudeStatus>({
+    isRunning: false,
     pid: null,
-    currentSessionId: null 
+    currentSessionId: null
   })
   const [messages, setMessages] = useState<ClaudeMessage[]>([])
   const [availableSessions, setAvailableSessions] = useState<AvailableSession[]>([])
   const activeSubscriptionsRef = useRef<Set<string>>(new Set())
   const loadedSessionsRef = useRef<Set<string>>(new Set())
   const socketRef = useRef<Socket | null>(null)
-  
+
   const { activeProjectId, getActiveProject, addMessageToTab, projects, setAvailableSessions: storeSetAvailableSessions } = useProjectStore()
   const storeSetAvailableSessionsRef = useRef(storeSetAvailableSessions)
-  
+
   // Update ref when function changes
   useEffect(() => {
     storeSetAvailableSessionsRef.current = storeSetAvailableSessions
   }, [storeSetAvailableSessions])
-  
+
   // Tool tracking
   const {
     startTool,
@@ -51,7 +53,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const addMessage = useCallback((message: ClaudeMessage) => {
     // Add to global messages for compatibility
     setMessages(prev => [...prev, { ...message, timestamp: Date.now() }])
-    
+
     // Also add to active session in store
     const activeProject = getActiveProject()
     if (activeProject && activeProject.activeTabId) {
@@ -88,7 +90,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
   const handleToolResult = useCallback((data: { tool_use_id: string; content: unknown; error?: string }) => {
     completeTool(data.tool_use_id, !!data.error, data)
-    
+
     setMessages(prev => {
       const updatedMessages = prev.map((msg) => {
         if (msg.tool_use?.id === data.tool_use_id) {
@@ -105,7 +107,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
         return msg
       })
-      
+
       const foundMatch = updatedMessages.some(msg => msg.tool_use?.id === data.tool_use_id)
       if (!foundMatch) {
         return [...updatedMessages, {
@@ -117,7 +119,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           timestamp: Date.now()
         }]
       }
-      
+
       return updatedMessages
     })
   }, [completeTool])
@@ -144,24 +146,24 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
   const processHistoryMessages = useCallback((history: HistoryItem[]) => {
     resetToolTracking()
-    
+
     let currentAgentId: string | null = null
-    
+
     history.forEach((item: any) => {
       if (item.type === 'assistant' && item.message?.content) {
-        const toolUse = Array.isArray(item.message.content) ? 
+        const toolUse = Array.isArray(item.message.content) ?
           item.message.content.find((c: any) => c.type === 'tool_use') : null
-        
+
         if (toolUse?.name === 'Task' && toolUse.input?.subagent_type) {
           currentAgentId = toolUse.id
           startTool(toolUse.id, toolUse.name, toolUse.input)
         }
       }
-      
+
       if (item.type === 'user' && item.message?.content && currentAgentId) {
-        const toolResult = Array.isArray(item.message.content) ? 
+        const toolResult = Array.isArray(item.message.content) ?
           item.message.content.find((c: any) => c.type === 'tool_result') : null
-        
+
         if (toolResult && item.toolUseResult) {
           const stats = item.toolUseResult
           completeTool(currentAgentId, false, {
@@ -174,7 +176,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
       }
     })
-    
+
     return transformHistoryToMessages(history)
   }, [resetToolTracking, startTool, completeTool])
 
@@ -187,18 +189,18 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const validMessages = newMessages.map((item: any) => {
       if (item.tool_use || (item.type === 'assistant' && item.message?.content)) {
         let toolUse = item.tool_use
-        
+
         if (!toolUse && item.message?.content && Array.isArray(item.message.content)) {
           toolUse = item.message.content.find((c: any) => c.type === 'tool_use')
         }
-        
+
         if (toolUse) {
           if (toolUse.name === 'Task' && toolUse.input?.subagent_type) {
             startTool(toolUse.id, toolUse.name, toolUse.input)
           } else {
             startTool(toolUse.id, toolUse.name, toolUse.input)
           }
-          
+
           return {
             tool_use: {
               name: toolUse.name,
@@ -210,19 +212,19 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-      
+
       if (item.tool_result || (item.type === 'user' && item.message?.content)) {
         let toolResult = item.tool_result
-        
+
         if (!toolResult && item.message?.content && Array.isArray(item.message.content)) {
           toolResult = item.message.content.find((c: any) => c.type === 'tool_result')
         }
-        
+
         if (toolResult) {
           if (toolResult.tool_use_id) {
             completeTool(toolResult.tool_use_id, !!toolResult.error, toolResult)
           }
-          
+
           return {
             tool_result: {
               content: typeof toolResult.content === 'string' ? toolResult.content : JSON.stringify(toolResult.content),
@@ -233,11 +235,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-      
-      if (item.assistant || (item.role === 'assistant' && item.content) || 
+
+      if (item.assistant || (item.role === 'assistant' && item.content) ||
           (item.type === 'assistant' && item.message)) {
         let content = ''
-        
+
         if (item.assistant) {
           content = item.assistant
         } else if (item.content) {
@@ -250,7 +252,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             content = item.message.content
           }
         }
-        
+
         if (content) {
           return {
             assistant: ensureString(content),
@@ -258,11 +260,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-      
-      if (item.human || (item.role === 'user' && item.content) || 
+
+      if (item.human || (item.role === 'user' && item.content) ||
           (item.type === 'user' && item.message)) {
         let content = ''
-        
+
         if (item.human) {
           content = item.human
         } else if (item.content) {
@@ -274,13 +276,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             const textContent = item.message.content.find((c: any) => c.type === 'text')
             content = textContent?.text || textContent?.content || ''
             if (!content) {
-              content = item.message.content.map((c: any) => 
+              content = item.message.content.map((c: any) =>
                 typeof c === 'string' ? c : (c.text || c.content || '')
               ).join('')
             }
           }
         }
-        
+
         if (content) {
           return {
             human: ensureString(content),
@@ -288,23 +290,23 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-      
+
       return null
     }).filter((msg: any) => msg !== null)
-    
+
     const toolResults = validMessages.filter(msg => msg && msg.tool_result)
     const otherMessages = validMessages.filter(msg => msg && !msg.tool_result)
-    
+
     setMessages(prev => {
       let updatedMessages = [...prev]
-      
+
       toolResults.forEach(resultMsg => {
         if (resultMsg && resultMsg.tool_result) {
           const toolUseId = resultMsg.tool_result.tool_use_id
-          const foundIndex = updatedMessages.findIndex(msg => 
+          const foundIndex = updatedMessages.findIndex(msg =>
             msg.tool_use?.id === toolUseId
           )
-          
+
           if (foundIndex !== -1) {
             updatedMessages[foundIndex] = {
               ...updatedMessages[foundIndex],
@@ -316,11 +318,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           }
         }
       })
-      
+
       if (otherMessages.length > 0) {
         updatedMessages = [...updatedMessages, ...otherMessages]
       }
-      
+
       return updatedMessages
     })
   }, [startTool, completeTool])
@@ -328,10 +330,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   // Subscribe to sessions only when tabs change (not on every message)
   useEffect(() => {
     if (!isConnected || !socket) return
-    
+
     // Build a map of current sessions from all project tabs
     const currentSessions = new Map<string, string>() // sessionId -> projectPath
-    
+
     projects.forEach(project => {
       project.tabs.forEach(tab => {
         // Only watch real sessions, not "new" placeholder tabs
@@ -340,7 +342,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }
       })
     })
-    
+
     // Unsubscribe from sessions no longer in any tab
     activeSubscriptionsRef.current.forEach(sessionId => {
       if (!currentSessions.has(sessionId)) {
@@ -350,7 +352,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         activeSubscriptionsRef.current.delete(sessionId)
       }
     })
-    
+
     // Subscribe to new sessions only
     currentSessions.forEach((projectPath, sessionId) => {
       if (!activeSubscriptionsRef.current.has(sessionId)) {
@@ -361,7 +363,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [isConnected, socket, projects.map(p => p.tabs.map(t => t.sessionId).join(',')).join('|')])
 
   useEffect(() => {
-    const serverUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.56:9876'
+    const serverUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:9876'
     const newSocket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 20000,
@@ -369,7 +371,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       reconnectionDelay: 1000,
       reconnectionAttempts: 5
     })
-    
+
     setSocket(newSocket)
     socketRef.current = newSocket
 
@@ -377,7 +379,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       setIsConnected(true)
       activeSubscriptionsRef.current.clear()
     })
-    
+
     newSocket.on('disconnect', () => {
       setIsConnected(false)
       activeSubscriptionsRef.current.clear()
@@ -396,39 +398,39 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     newSocket.on('claude_system', (data: any) => {
       addSystemMessage(data.message?.content || data.content || '')
     })
-    
+
     newSocket.on('claude_assistant', (data: any) => {
       if (data.message?.content?.[0]?.type === 'text') {
         addAssistantMessage(data.message.content[0].text)
       }
     })
-    
+
     newSocket.on('claude_user', (data: any) => {
       if (data.message?.content?.[0]?.type === 'text') {
         addUserMessage(data.message.content[0].text)
       }
     })
-    
+
     newSocket.on('claude_tool_use', handleToolUse)
     newSocket.on('claude_tool_result', handleToolResult)
     newSocket.on('claude_context', addContextMessage)
-    
+
     newSocket.on('claude_session', (data: any) => {
       if (data.subtype !== 'session_start') {
         addSessionMessage(data)
       }
     })
-    
+
     newSocket.on('claude_output', (message: any) => {
       if (message?.content) {
         addAssistantMessage(String(message.content))
       }
     })
-    
+
     newSocket.on('claude_session_history', (data: any) => {
       if (data?.history && data?.sessionId) {
         const validMessages = processHistoryMessages(data.history)
-        
+
         // Find the tab with this sessionId and update its messages
         const activeProject = getActiveProject()
         if (activeProject) {
@@ -436,7 +438,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           if (targetTab) {
             // Check if tab already has messages
             const existingMessages = targetTab.messages || []
-            
+
             if (existingMessages.length === 0) {
               // Only load history if tab doesn't have messages yet
               validMessages.forEach(msg => {
@@ -445,7 +447,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             }
           }
         }
-        
+
         // Also set global messages for compatibility
         setMessages(validMessages)
         resetToolTracking()
@@ -466,7 +468,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             break
           }
         }
-        
+
         // Also process for global messages if it's the current session
         if (data.sessionId === claudeStatus.currentSessionId) {
           processRealtimeMessages(data.newMessages)
@@ -476,13 +478,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     newSocket.on('claude_session_watch_started', () => {})
     newSocket.on('claude_session_watch_error', () => {})
-    
+
     // Handle available sessions response
     newSocket.on('claude_sessions', (data: any) => {
       // Handle both old format (sessions array) and new format (with projectPath)
       let sessions: any[] = []
       let projectPath: string | undefined
-      
+
       if (Array.isArray(data)) {
         // Old format: just an array of sessions
         sessions = data
@@ -491,9 +493,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         sessions = data.sessions || []
         projectPath = data.projectPath
       }
-      
+
       setAvailableSessions(sessions)
-      
+
       // Also save to store if we have a project path
       if (projectPath && storeSetAvailableSessionsRef.current) {
         storeSetAvailableSessionsRef.current(projectPath, sessions)
@@ -508,12 +510,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           currentSessionId: data.status.currentSessionId || data.sessionId || null
         })
       }
-      
+
       if (data.sessionId && data.status?.isRunning) {
         const projectPath = process.env.PWD || '/Users/peax/Projects/claude-code-remote'
-        newSocket.emit('claude_watch_session', { 
-          sessionId: data.sessionId, 
-          projectPath 
+        newSocket.emit('claude_watch_session', {
+          sessionId: data.sessionId,
+          projectPath
         })
       }
     })
@@ -566,11 +568,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       loadedSessionsRef.current.add(sessionId)
     }
   }, [socket])
-  
+
   const getAvailableSessions = useCallback((projectPath?: string) => {
     const activeProject = getActiveProject()
     const pathToUse = projectPath || activeProject?.path
-    
+
     if (socket?.connected && pathToUse) {
       socket.emit('claude_get_sessions', { projectPath: pathToUse })
     }

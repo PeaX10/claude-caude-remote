@@ -1,9 +1,10 @@
 {
   "expo": {
-    "name": "Claude Remote",
-    "slug": "claude-remote",
+    "name": "Claude Code Remote",
+    "slug": "claude-code-remote",
     "version": "1.0.0",
     "orientation": "portrait",
+    "scheme": "claude-code-remote",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -11,27 +12,26 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.claude.remote"
+      "bundleIdentifier": "com.claude.remote",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.claude.remote"
+      "package": "sol.m0ustaflex.claude-code-remote"
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "static"
     },
-    "plugins": [
-      "expo-router"
-    ],
+    "plugins": ["expo-router", "expo-secure-store"],
     "experiments": {
       "typedRoutes": true
     },
@@ -40,8 +40,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "c1501c74-00ba-4999-bb30-455449572ed5"
       }
-    }
+    },
+    "owner": "m0ustaflex"
   }
 }

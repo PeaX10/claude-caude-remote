@@ -109,8 +109,8 @@ export default function ChatContent() {
     loadSessionHistory,
   } = useWebSocket();
   
-  // Get messages from the active tab
-  const messages = activeTab ? getTabMessages(activeProjectId!, activeTab.id) : [];
+  // Get messages from the active tab - use the messages directly from the tab
+  const messages = activeTab?.messages || [];
 
   const { setConnected, setClaudeRunning } = useStore();
 
@@ -198,36 +198,44 @@ export default function ChatContent() {
   }, [filteredMessages]);
 
   const hasRestoredRef = useRef<string | undefined>();
+  const previousMessageCountRef = useRef<number>(0);
   
   useEffect(() => {
     if (!activeTab || !activeProjectId) return;
     const isNewChatTab = activeTab.title === 'New Chat' && displayableMessages.length === 0;
     if (isNewChatTab) {
-
       return;
     }
     
     const tabKey = `${activeProjectId}-${activeTab.id}`;
-    const savedPosition = getScrollPosition(activeProjectId, activeTab.id);
-    const lastMessageCount = activeTab.lastMessageCount || 0;
     const currentMessageCount = displayableMessages.length;
-    const hasNewMessages = currentMessageCount > lastMessageCount;
+    const hasNewMessages = currentMessageCount > previousMessageCountRef.current;
+    
+    // Only scroll if this is a different tab or we have new messages
     if (hasRestoredRef.current === tabKey && !hasNewMessages) {
       return;
     }
+    
+    // Update previous message count
+    previousMessageCountRef.current = currentMessageCount;
+    
+    const savedPosition = getScrollPosition(activeProjectId, activeTab.id);
+    
     setTimeout(() => {
-      if (hasNewMessages) {
+      if (hasNewMessages && hasRestoredRef.current === tabKey) {
+        // Only scroll to bottom for new messages if we've already restored this tab
         scrollToBottom();
-        hasRestoredRef.current = tabKey;
-      } else if (savedPosition !== undefined && savedPosition >= 0) {
-        scrollToPosition(savedPosition, false);
-        hasRestoredRef.current = tabKey;
-      } else if (displayableMessages.length > 0) {
-        scrollToBottom(false);
+      } else if (hasRestoredRef.current !== tabKey) {
+        // First time loading this tab
+        if (savedPosition !== undefined && savedPosition >= 0) {
+          scrollToPosition(savedPosition, false);
+        } else if (displayableMessages.length > 0) {
+          scrollToBottom(false);
+        }
         hasRestoredRef.current = tabKey;
       }
     }, 100);
-  }, [activeTab?.id, displayableMessages.length, activeProjectId, getScrollPosition, scrollToBottom, scrollToPosition]);
+  }, [activeTab?.id, displayableMessages.length, activeProjectId]);
 
   const handleSend = useCallback(() => {
     if (!inputText.trim() || !activeTab) return;
