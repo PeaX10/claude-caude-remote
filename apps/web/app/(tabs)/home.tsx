@@ -51,7 +51,7 @@ export default function HomePage() {
       const existingTab = project.tabs.find(t => t.sessionId === sessionId);
       if (existingTab) {
         // Switch to existing tab
-        useProjectStore.getState().setActiveTab(projectId, existingTab.id);
+        setActiveTab(projectId, existingTab.id);
       } else {
         // Open session in new tab
         const session = recentSessions.find(s => s.id === sessionId);

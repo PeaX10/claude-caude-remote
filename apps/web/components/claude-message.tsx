@@ -11,41 +11,10 @@ import {
   EditMessage
 } from './messages'
 import { ToolMessage } from './tool-message'
-
-interface ClaudeMessageType {
-  type?: string
-  role?: string
-  content?: string | any[]
-  human?: string
-  assistant?: string
-  system?: string
-  tool_use?: {
-    name: string
-    input?: any
-    id?: string
-  }
-  tool_result?: {
-    content?: string
-    error?: string
-    tool_use_id?: string
-  }
-  context?: {
-    type?: string
-    content?: string
-    usage?: any
-  }
-  session?: {
-    id?: string
-    created?: string
-    updated?: string
-    cwd?: string
-  }
-  timestamp?: number
-  isLoading?: boolean
-}
+import type { ClaudeMessage } from '../types/project.types'
 
 interface ClaudeMessageProps {
-  message: ClaudeMessageType
+  message: ClaudeMessage
   fadeAnim: Animated.Value
   slideAnim: Animated.Value
 }

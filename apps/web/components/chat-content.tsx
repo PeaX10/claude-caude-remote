@@ -4,9 +4,8 @@ import {
   ScrollView,
   TouchableOpacity,
   Text,
-  KeyboardAvoidingView,
-  Platform,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { colors, spacing } from "../theme/colors";
 import { useWebSocket } from "../hooks/use-web-socket";
@@ -75,19 +74,19 @@ export default function ChatContent() {
   const styles = createMainStyles();
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
-  
-  const { 
-    activeProjectId, 
-    getActiveProject, 
-    getTabMessages, 
+
+  const {
+    activeProjectId,
+    getActiveProject,
     addMessageToTab,
     saveScrollPosition,
-    getScrollPosition 
+    getScrollPosition
   } = useProjectStore();
   const activeProject = getActiveProject();
-  
+
   // Get active tab
   const activeTab = activeProject?.tabs.find(
     tab => tab.id === activeProject.activeTabId
@@ -108,7 +107,7 @@ export default function ChatContent() {
     getAgentToolIds,
     loadSessionHistory,
   } = useWebSocket();
-  
+
   // Get messages from the active tab - use the messages directly from the tab
   const messages = activeTab?.messages || [];
 
@@ -123,7 +122,6 @@ export default function ChatContent() {
     checkIfAtBottom,
     scrollToBottom,
     scrollToPosition,
-    getCurrentScrollPosition,
     handleLayout,
     handleContentSizeChange,
   } = useScrollHandler();
@@ -133,12 +131,12 @@ export default function ChatContent() {
     setClaudeRunning(claudeStatus.isRunning);
   }, [isConnected, claudeStatus.isRunning]);
 
-  const previousTabRef = useRef<string | undefined>();
-  const previousProjectRef = useRef<string | undefined>();
-  
+  const previousTabRef = useRef<string | undefined>(undefined);
+  const previousProjectRef = useRef<string | undefined>(undefined);
+
   useEffect(() => {
-    if (previousTabRef.current && 
-        previousProjectRef.current && 
+    if (previousTabRef.current &&
+        previousProjectRef.current &&
         (previousTabRef.current !== activeTab?.id || previousProjectRef.current !== activeProjectId)) {
       const position = currentScrollPosition;
       saveScrollPosition(previousProjectRef.current, previousTabRef.current, position);
@@ -146,14 +144,29 @@ export default function ChatContent() {
     previousTabRef.current = activeTab?.id;
     previousProjectRef.current = activeProjectId || undefined;
   }, [activeTab?.id, activeProjectId, currentScrollPosition, saveScrollPosition]);
-  
+
   useEffect(() => {
     if (activeSessionId && activeProject?.path && isConnected) {
-      if (!messages || messages.length === 0) {
+      // Only load history for existing sessions, not for new tabs
+      const isNewSession = activeSessionId.startsWith('new_');
+      if (!isNewSession && (!messages || messages.length === 0)) {
+        setIsLoadingHistory(true);
         loadSessionHistory(activeSessionId, activeProject.path);
+      } else {
+        // Reset loading state for new tabs
+        setIsLoadingHistory(false);
       }
+    } else {
+      setIsLoadingHistory(false);
     }
   }, [activeSessionId, activeProject?.path, isConnected, messages.length, loadSessionHistory]);
+
+  // Hide loading when messages arrive
+  useEffect(() => {
+    if (messages.length > 0) {
+      setIsLoadingHistory(false);
+    }
+  }, [messages.length]);
 
   const filteredMessages = useMemo(() => {
     const result = messages.filter((message) => {
@@ -197,30 +210,30 @@ export default function ChatContent() {
     });
   }, [filteredMessages]);
 
-  const hasRestoredRef = useRef<string | undefined>();
+  const hasRestoredRef = useRef<string | undefined>(undefined);
   const previousMessageCountRef = useRef<number>(0);
-  
+
   useEffect(() => {
     if (!activeTab || !activeProjectId) return;
     const isNewChatTab = activeTab.title === 'New Chat' && displayableMessages.length === 0;
     if (isNewChatTab) {
       return;
     }
-    
+
     const tabKey = `${activeProjectId}-${activeTab.id}`;
     const currentMessageCount = displayableMessages.length;
     const hasNewMessages = currentMessageCount > previousMessageCountRef.current;
-    
+
     // Only scroll if this is a different tab or we have new messages
     if (hasRestoredRef.current === tabKey && !hasNewMessages) {
       return;
     }
-    
+
     // Update previous message count
     previousMessageCountRef.current = currentMessageCount;
-    
+
     const savedPosition = getScrollPosition(activeProjectId, activeTab.id);
-    
+
     setTimeout(() => {
       if (hasNewMessages && hasRestoredRef.current === tabKey) {
         // Only scroll to bottom for new messages if we've already restored this tab
@@ -241,7 +254,7 @@ export default function ChatContent() {
     if (!inputText.trim() || !activeTab) return;
 
     setIsTyping(true);
-    
+
     // Add user message to the session
     const userMessage = {
       human: inputText,
@@ -252,7 +265,7 @@ export default function ChatContent() {
     if (isConnected) {
       // Send to WebSocket - in real implementation, this would be routed to the session
       wsSendMessage(inputText);
-      
+
       setTimeout(() => {
         const assistantMessage = {
           assistant: `[Session: ${activeTab.title}] I'm helping you with: "${inputText}". Each session maintains its own conversation history.`,
@@ -307,7 +320,23 @@ export default function ChatContent() {
           onContentSizeChange={handleContentSizeChange}
           showsVerticalScrollIndicator={false}
         >
-          {messages.length === 0 ? (
+          {isLoadingHistory ? (
+            <View style={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingVertical: 100,
+            }}>
+              <ActivityIndicator size="large" color={colors.accent.primary} />
+              <Text style={{
+                marginTop: spacing.md,
+                fontSize: 14,
+                color: colors.text.tertiary,
+              }}>
+                Loading session history...
+              </Text>
+            </View>
+          ) : messages.length === 0 ? (
             <EmptyState
               isConnected={isConnected}
               claudeIsRunning={claudeStatus.isRunning}
