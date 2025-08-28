@@ -123,19 +123,18 @@ const styles = StyleSheet.create({
   },
   tabsContent: {
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
   },
   tab: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
     marginRight: 1,
     backgroundColor: colors.background.secondary,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
     minWidth: 120,
     maxWidth: 200,
+    height: '100%',
   },
   activeTab: {
     backgroundColor: colors.background.primary,
@@ -179,6 +178,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    height: '100%',
   },
 });

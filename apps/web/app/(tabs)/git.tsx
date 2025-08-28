@@ -88,19 +88,16 @@ export default function GitScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Git Repository</Text>
-      </View>
 
       <View style={styles.tabs}>
-        <TabButton title="Status" active={activeTab === 'status'} onPress={() => setActiveTab('status')} />
+        <TabButton title="Changes" active={activeTab === 'status'} onPress={() => setActiveTab('status')} />
         <TabButton title="Branches" active={activeTab === 'branches'} onPress={() => setActiveTab('branches')} />
         <TabButton title="Commits" active={activeTab === 'commits'} onPress={() => setActiveTab('commits')} />
       </View>
 
       {!isConnected || !isClaudeRunning ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Git Repository</Text>
+          <Text style={styles.emptyTitle}>Git</Text>
           <Text style={styles.emptySubtitle}>
             {!isConnected ? 'Connect to server first' : 'Start Claude Code to access Git'}
           </Text>
@@ -183,18 +180,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background.primary,
-  },
-  header: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border.primary,
-  },
-  headerTitle: {
-    color: colors.text.primary,
-    fontSize: 18,
-    fontWeight: '600',
-    textAlign: 'center',
   },
   tabs: {
     flexDirection: 'row',

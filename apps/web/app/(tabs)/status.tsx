@@ -12,8 +12,8 @@ import {
 } from "react-native";
 import { useWebSocket } from "../../hooks/use-web-socket";
 import { useStore } from "../../store";
-import { Button } from '../../components/ui/button';
-import { colors, shadows, spacing } from '../../theme/colors';
+import { Button } from "../../components/ui/button";
+import { colors, shadows, spacing } from "../../theme/colors";
 
 const MODELS = [
   "claude-3-5-sonnet-20241022",
@@ -23,7 +23,9 @@ const MODELS = [
 
 export default function StatusScreen() {
   const [showModelPicker, setShowModelPicker] = useState(false);
-  const [serverUrl, setServerUrl] = useState(process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.56:9876");
+  const [serverUrl, setServerUrl] = useState(
+    process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.56:9876"
+  );
   const [showServerSettings, setShowServerSettings] = useState(false);
 
   const { isConnected, claudeStatus, startClaude, sendMessage } =
@@ -84,7 +86,6 @@ export default function StatusScreen() {
     </View>
   );
 
-
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -94,7 +95,7 @@ export default function StatusScreen() {
         >
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Settings</Text>
-            <Text style={styles.headerSubtitle}>Claude Code Remote Control</Text>
+            <Text style={styles.headerSubtitle}>Claude Code Remote</Text>
           </View>
 
           <View style={styles.section}>
@@ -103,12 +104,18 @@ export default function StatusScreen() {
               <StatusCard
                 title="Server"
                 value={isConnected ? "Connected" : "Disconnected"}
-                color={isConnected ? colors.semantic.success : colors.semantic.error}
+                color={
+                  isConnected ? colors.semantic.success : colors.semantic.error
+                }
               />
               <StatusCard
-                title="Claude Code"
+                title="Claude Code Remote"
                 value={claudeStatus.isRunning ? "Running" : "Stopped"}
-                color={claudeStatus.isRunning ? colors.semantic.success : colors.semantic.warning}
+                color={
+                  claudeStatus.isRunning
+                    ? colors.semantic.success
+                    : colors.semantic.warning
+                }
               />
               {claudeStatus.pid && (
                 <StatusCard
@@ -122,25 +129,25 @@ export default function StatusScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Claude Controls</Text>
-            
+
             <Button
-              title={`Model: ${currentModel.split('-').pop()?.toUpperCase()}`}
+              title={`Model: ${currentModel.split("-").pop()?.toUpperCase()}`}
               onPress={() => setShowModelPicker(true)}
               disabled={!isConnected || !isClaudeRunning}
               variant="ghost"
             />
-            
+
             <View style={styles.buttonSpacer} />
-            
+
             <Button
               title="Interrupt"
               onPress={handleInterrupt}
               disabled={!isConnected || !isClaudeRunning}
               variant="danger"
             />
-            
+
             <View style={styles.buttonSpacer} />
-            
+
             <Button
               title="Start Claude"
               onPress={() => startClaude()}
@@ -151,7 +158,7 @@ export default function StatusScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Chat Controls</Text>
-            
+
             <Button
               title="Clear Chat"
               onPress={handleClearChat}
@@ -161,7 +168,7 @@ export default function StatusScreen() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Connection</Text>
-            
+
             <Button
               title={`Server: ${new URL(serverUrl).host}`}
               onPress={() => setShowServerSettings(true)}
@@ -184,10 +191,14 @@ export default function StatusScreen() {
                 ]}
                 onPress={() => handleModelSwitch(model)}
               >
-                <Text style={[
-                  styles.modelText,
-                  currentModel === model && { color: '#ffffff' }
-                ]}>{model}</Text>
+                <Text
+                  style={[
+                    styles.modelText,
+                    currentModel === model && { color: "#ffffff" },
+                  ]}
+                >
+                  {model}
+                </Text>
                 {currentModel === model && (
                   <Text style={styles.checkmark}>✓</Text>
                 )}
@@ -345,10 +356,10 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     fontSize: 14,
     flex: 1,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   checkmark: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 16,
     fontWeight: "bold",
   },

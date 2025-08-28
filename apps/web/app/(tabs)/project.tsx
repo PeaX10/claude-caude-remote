@@ -10,8 +10,6 @@ import { colors } from '../../theme/colors';
 import ChatContent from '../../components/chat-content';
 import FilesScreen from './files';
 import GitScreen from './git';
-import StatusScreen from './status';
-
 export default function ProjectScreen() {
   const router = useRouter();
   const { activeProjectId, getActiveProject } = useProjectStore();
@@ -51,8 +49,6 @@ export default function ProjectScreen() {
         return <FilesScreen />;
       case 'git':
         return <GitScreen />;
-      case 'settings':
-        return <StatusScreen />;
       default:
         return null;
     }

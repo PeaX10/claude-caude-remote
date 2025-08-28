@@ -5,6 +5,7 @@ import { colors } from '../theme/colors'
 import { useWebSocket } from '../hooks/use-web-socket'
 import { ChatHeader } from './chat-header'
 import { Sidebar } from './sidebar'
+import { useProjectStore } from '../store/project-store'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -13,6 +14,8 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { isConnected, claudeStatus, socket } = useWebSocket()
+  const { getActiveProject } = useProjectStore()
+  const activeProject = getActiveProject()
 
   const handleRefresh = () => {
     // Refresh functionality can be added here if needed
@@ -32,6 +35,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           onRefresh={handleRefresh}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           sidebarOpen={sidebarOpen}
+          projectName={activeProject?.name}
         />
         <View style={styles.children}>
           {children}

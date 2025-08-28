@@ -14,7 +14,8 @@ export default function TabsLayout() {
         <Tabs.Screen name="index" />
         <Tabs.Screen name="files" />
         <Tabs.Screen name="status" />
-        <Tabs.Screen name="test" />
+        <Tabs.Screen name="git" />
+        <Tabs.Screen name="project" />
       </Tabs>
     </AppLayout>
   );

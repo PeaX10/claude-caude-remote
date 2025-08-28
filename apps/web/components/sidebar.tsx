@@ -1,18 +1,18 @@
-import { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  TouchableOpacity, 
-  ScrollView, 
-  Animated, 
+import { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  Animated,
   TouchableWithoutFeedback,
-  StyleSheet
-} from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { colors, spacing } from '../theme/colors';
-import { useProjectStore } from '../store/project-store';
-import { useRouter, usePathname } from 'expo-router';
-import { FolderSelectorButton } from './folder-selector-button';
+  StyleSheet,
+} from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { colors, spacing } from "../theme/colors";
+import { useProjectStore } from "../store/project-store";
+import { useRouter, usePathname } from "expo-router";
+import { FolderSelectorButton } from "./folder-selector-button";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -22,18 +22,15 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { 
-    projects, 
-    activeProjectId, 
-    setActiveProject, 
-    addTab,
-    setActiveTab 
-  } = useProjectStore();
-  
+  const { projects, activeProjectId, setActiveProject, addTab, setActiveTab } =
+    useProjectStore();
+
   // Check if we're on home page
-  const isOnHome = pathname?.includes('/home') || false;
-  
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const isOnHome = pathname?.includes("/home") || false;
+
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
+    new Set()
+  );
   const slideAnim = useState(new Animated.Value(isOpen ? 0 : -280))[0];
   const overlayAnim = useState(new Animated.Value(isOpen ? 1 : 0))[0];
 
@@ -49,7 +46,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
         toValue: isOpen ? 1 : 0,
         duration: 300,
         useNativeDriver: true,
-      })
+      }),
     ]).start();
   }, [isOpen]);
 
@@ -64,95 +61,109 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
   };
 
   const handleProjectClick = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
+    const project = projects.find((p) => p.id === projectId);
     if (!project) return;
-    
+
     setActiveProject(projectId);
-    
+
     // If project has no tabs, create one
     if (project.tabs.length === 0) {
       const newTabId = addTab(projectId, {
         sessionId: `new_${Date.now()}`,
-        title: 'New Chat',
+        title: "New Chat",
       });
       setActiveTab(projectId, newTabId);
-    } else if (!project.activeTabId || !project.tabs.find(t => t.id === project.activeTabId)) {
+    } else if (
+      !project.activeTabId ||
+      !project.tabs.find((t) => t.id === project.activeTabId)
+    ) {
       // If no active tab or active tab doesn't exist, set the first tab as active
       setActiveTab(projectId, project.tabs[0].id);
     }
     // Otherwise keep the existing active tab
-    
-    router.push('./project');
+
+    router.push("./project");
     onToggle();
   };
 
   const handleTabClick = (projectId: string, tabId: string) => {
     setActiveProject(projectId);
     setActiveTab(projectId, tabId);
-    router.push('./project');
+    router.push("./project");
     onToggle();
   };
 
   const handleHomeClick = () => {
-    setActiveProject(null);  // Clear active project when going home
-    router.push('./home');
+    setActiveProject(null); // Clear active project when going home
+    router.push("./home");
     onToggle();
   };
 
   return (
     <>
-      <Animated.View 
+      <Animated.View
         style={[
-          styles.overlay, 
-          { 
+          styles.overlay,
+          {
             opacity: overlayAnim,
-            display: isOpen ? 'flex' : 'none',
-          }
+            display: isOpen ? "flex" : "none",
+          },
         ]}
-        pointerEvents={isOpen ? 'auto' : 'none'}
+        pointerEvents={isOpen ? "auto" : "none"}
       >
         <TouchableWithoutFeedback onPress={onToggle}>
           <View style={{ flex: 1 }} />
         </TouchableWithoutFeedback>
       </Animated.View>
 
-      <Animated.View style={[styles.container, { transform: [{ translateX: slideAnim }] }]}>
+      <Animated.View
+        style={[styles.container, { transform: [{ translateX: slideAnim }] }]}
+      >
         <View style={styles.header}>
           <TouchableOpacity onPress={handleHomeClick} activeOpacity={0.7}>
-            <Text style={styles.title}>Claude Remote</Text>
+            <Text style={styles.title}>Claude Code Remote</Text>
           </TouchableOpacity>
         </View>
-        
+
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Home Link */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.homeLink, isOnHome && styles.activeLinkItem]}
             onPress={handleHomeClick}
             activeOpacity={0.7}
           >
-            <Feather name="home" size={16} color={isOnHome ? colors.accent.primary : colors.text.secondary} />
-            <Text style={[styles.homeLinkText, isOnHome && styles.activeText]}>Home</Text>
+            <Feather
+              name="home"
+              size={16}
+              color={isOnHome ? colors.accent.primary : colors.text.secondary}
+            />
+            <Text style={[styles.homeLinkText, isOnHome && styles.activeText]}>
+              Home
+            </Text>
           </TouchableOpacity>
-          
+
           {/* Projects Section */}
           <View style={styles.projectsHeader}>
             <Text style={styles.sectionTitle}>Projects</Text>
-            <FolderSelectorButton 
+            <FolderSelectorButton
               variant="secondary"
               size="small"
               showIcon={true}
               style={styles.addFolderButton}
             />
           </View>
-          
+
           {projects.map((project) => {
             const isActive = activeProjectId === project.id;
             const isExpanded = expandedProjects.has(project.id);
-            
+
             return (
               <View key={project.id}>
-                <TouchableOpacity 
-                  style={[styles.projectItem, isActive && styles.activeProjectItem]}
+                <TouchableOpacity
+                  style={[
+                    styles.projectItem,
+                    isActive && styles.activeProjectItem,
+                  ]}
                   onPress={() => handleProjectClick(project.id)}
                   activeOpacity={0.7}
                 >
@@ -161,38 +172,51 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
                     onPress={() => toggleProject(project.id)}
                     activeOpacity={0.7}
                   >
-                    <Feather 
-                      name={isExpanded ? 'chevron-down' : 'chevron-right'} 
-                      size={14} 
+                    <Feather
+                      name={isExpanded ? "chevron-down" : "chevron-right"}
+                      size={14}
                       color={colors.text.tertiary}
                     />
                   </TouchableOpacity>
-                  
-                  <Text style={[styles.projectName, isActive && styles.activeText]}>
+
+                  <Text
+                    style={[styles.projectName, isActive && styles.activeText]}
+                  >
                     {project.name}
                   </Text>
-                  
+
                   {project.tabs.length > 0 && (
                     <View style={styles.tabCount}>
-                      <Text style={styles.tabCountText}>{project.tabs.length}</Text>
+                      <Text style={styles.tabCountText}>
+                        {project.tabs.length}
+                      </Text>
                     </View>
                   )}
                 </TouchableOpacity>
-                
+
                 {/* Tabs */}
                 {isExpanded && project.tabs.length > 0 && (
                   <View style={styles.tabsList}>
                     {project.tabs.map((tab) => {
-                      const isActiveTab = isActive && project.activeTabId === tab.id;
-                      
+                      const isActiveTab =
+                        isActive && project.activeTabId === tab.id;
+
                       return (
                         <TouchableOpacity
                           key={tab.id}
-                          style={[styles.tabItem, isActiveTab && styles.activeTabItem]}
+                          style={[
+                            styles.tabItem,
+                            isActiveTab && styles.activeTabItem,
+                          ]}
                           onPress={() => handleTabClick(project.id, tab.id)}
                           activeOpacity={0.7}
                         >
-                          <Text style={[styles.tabTitle, isActiveTab && styles.activeTabTitle]}>
+                          <Text
+                            style={[
+                              styles.tabTitle,
+                              isActiveTab && styles.activeTabTitle,
+                            ]}
+                          >
                             {tab.title}
                           </Text>
                         </TouchableOpacity>
@@ -203,7 +227,7 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
               </View>
             );
           })}
-          
+
           {projects.length === 0 && (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No projects yet</Text>
@@ -217,28 +241,28 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
 
 const styles = StyleSheet.create({
   activeLinkItem: {
-    backgroundColor: colors.accent.primary + '10',
+    backgroundColor: colors.accent.primary + "10",
     borderLeftWidth: 3,
     borderLeftColor: colors.accent.primary,
     paddingLeft: spacing.lg - 3,
   },
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
     zIndex: 999,
   },
   container: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 0,
     bottom: 0,
     width: 280,
     backgroundColor: colors.background.secondary,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 2, height: 0 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
@@ -246,25 +270,26 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   header: {
-    height: 60,
-    justifyContent: 'center',
+    justifyContent: "center",
     paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg + 2.5,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.primary,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: "600",
     color: colors.text.primary,
+    letterSpacing: 0.3,
   },
   content: {
     flex: 1,
   },
   homeLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    height: 44,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.primary,
   },
@@ -274,18 +299,18 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
   },
   projectsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: spacing.lg,
     marginTop: spacing.lg,
     marginBottom: spacing.sm,
   },
   sectionTitle: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
     letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     color: colors.text.tertiary,
     flex: 1,
   },
@@ -295,8 +320,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   projectItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingLeft: spacing.md,
@@ -316,7 +341,7 @@ const styles = StyleSheet.create({
   },
   activeText: {
     color: colors.accent.primary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   tabCount: {
     backgroundColor: colors.background.primary,
@@ -324,7 +349,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 10,
     minWidth: 20,
-    alignItems: 'center',
+    alignItems: "center",
   },
   tabCountText: {
     fontSize: 11,
@@ -342,7 +367,7 @@ const styles = StyleSheet.create({
     minHeight: 32,
   },
   activeTabItem: {
-    backgroundColor: colors.accent.primary + '10',
+    backgroundColor: colors.accent.primary + "10",
     borderLeftWidth: 2,
     borderLeftColor: colors.accent.primary,
     paddingLeft: spacing.xl + spacing.xl - 2,
@@ -356,7 +381,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     padding: spacing.xl,
-    alignItems: 'center',
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 14,

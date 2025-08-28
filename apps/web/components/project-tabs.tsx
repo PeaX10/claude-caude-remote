@@ -7,7 +7,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../theme/colors';
 
-export type ProjectTab = 'chat' | 'files' | 'git' | 'settings';
+export type ProjectTab = 'chat' | 'files' | 'git';
 
 interface ProjectTabsProps {
   activeTab: ProjectTab;
@@ -20,7 +20,6 @@ export function ProjectTabs({ activeTab, onTabChange, isMobile = false }: Projec
     { id: 'chat' as ProjectTab, label: 'Chat', icon: 'message-circle' },
     { id: 'files' as ProjectTab, label: 'Files', icon: 'folder' },
     { id: 'git' as ProjectTab, label: 'Git', icon: 'git-branch' },
-    { id: 'settings' as ProjectTab, label: 'Settings', icon: 'settings' },
   ];
 
   return (
