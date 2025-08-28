@@ -22,19 +22,6 @@ interface ClaudeMessageProps {
 const ClaudeMessageComponent = ({ message, fadeAnim, slideAnim }: ClaudeMessageProps) => {
   
   const renderMessage = () => {
-    
-    // Handle new message format with role and content
-    if (message.role === 'user' && message.content) {
-      const contentText = typeof message.content === 'string' ? message.content : 
-                         Array.isArray(message.content) ? message.content.filter(c => c && typeof c === 'string').join('') : ''
-      return <UserMessage content={contentText} timestamp={message.timestamp} />
-    }
-    
-    if (message.role === 'assistant' && message.content) {
-      const contentText = typeof message.content === 'string' ? message.content : 
-                         Array.isArray(message.content) ? message.content.filter(c => c && typeof c === 'string').join('') : ''
-      return <AssistantMessage content={contentText} timestamp={message.timestamp} />
-    }
 
     // Legacy message format support
     // User message
@@ -147,7 +134,7 @@ const ClaudeMessageComponent = ({ message, fadeAnim, slideAnim }: ClaudeMessageP
 }
 
 // Memoized component to prevent unnecessary re-renders
-export const ClaudeMessage = React.memo(ClaudeMessageComponent, (prevProps, nextProps) => {
+export const ClaudeMessageView = React.memo(ClaudeMessageComponent, (prevProps, nextProps) => {
   return (
     prevProps.message === nextProps.message &&
     prevProps.fadeAnim === nextProps.fadeAnim &&

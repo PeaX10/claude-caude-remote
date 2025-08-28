@@ -10,6 +10,8 @@ import { useRouter } from 'expo-router';
 import { useProjectStore } from '../../store/project-store';
 import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../../theme/colors';
+import { FolderSelectorButton } from '../../components/folder-selector-button';
+import { OpenProjectButton } from '../../components/open-project-button';
 
 export default function HomePage() {
   const router = useRouter();
@@ -91,11 +93,7 @@ export default function HomePage() {
         
         {projects.length === 0 ? (
           <View style={styles.emptyState}>
-            <Feather name="folder" size={48} color={colors.text.tertiary} />
-            <Text style={styles.emptyText}>No projects yet</Text>
-            <Text style={styles.emptySubtext}>
-              Open a folder to start working with Claude
-            </Text>
+            <OpenProjectButton style={{ width: '100%', maxWidth: 320 }} />
           </View>
         ) : (
           <>
@@ -135,7 +133,14 @@ export default function HomePage() {
 
             {/* Projects */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Projects</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Projects</Text>
+                <FolderSelectorButton 
+                  variant="secondary"
+                  size="small"
+                  style={{ marginLeft: 'auto' }}
+                />
+              </View>
               {projects.map((project) => (
                 <TouchableOpacity
                   key={project.id}
@@ -219,14 +224,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border.primary,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+  },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     color: colors.text.tertiary,
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.lg,
   },
   sessionItem: {
     flexDirection: 'row',

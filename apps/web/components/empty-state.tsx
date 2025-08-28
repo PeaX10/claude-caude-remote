@@ -1,10 +1,11 @@
-import { View, Text, TouchableOpacity, Animated, ScrollView } from 'react-native'
+import { View, Text, TouchableOpacity, Animated, ScrollView, DimensionValue } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { colors, spacing } from '../theme/colors'
 import { useProjectStore } from '../store/project-store'
 import { useWebSocket } from '../contexts/websocket-context'
 import { useEffect, useState, useMemo } from 'react'
 import { getRelativeTimeString } from '../utils/date-formatter'
+import type { AvailableSession } from '../types/project.types'
 
 interface EmptyStateProps {
   isConnected: boolean
@@ -40,7 +41,7 @@ const createEmptyStyles = () => ({
     marginBottom: spacing.xl,
   },
   sessionsContainer: {
-    width: '100%',
+    width: '100%' as DimensionValue,
     marginTop: spacing.lg,
   },
   sectionTitle: {
@@ -145,7 +146,7 @@ export function EmptyState({
     }
   }, [availableSessions, isLoadingSessions])
   
-  const handleLoadSession = (session: any) => {
+  const handleLoadSession = (session: AvailableSession) => {
     if (projectId && tabId) {
       // Update the current tab with the selected session
       updateTab(projectId, tabId, {

@@ -10,11 +10,12 @@ import { ReadToolRenderer } from './tools/read-tool-renderer'
 import { CompactToolRenderer } from './tools/compact-tool-renderer'
 import { GenericToolRenderer } from './tools/generic-tool-renderer'
 import { MultiEditToolRenderer } from './tools/multi-edit-tool-renderer'
+import { ToolInput } from '../types/tool.types'
 
 interface ToolMessageProps {
   toolUse?: {
     name: string
-    input?: any
+    input?: ToolInput
     id?: string
   }
   toolResult?: {

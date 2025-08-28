@@ -4,11 +4,13 @@ import { ErrorDisplay } from '../shared/error-display'
 import { colors, spacing } from '../../theme/colors'
 import { isInterrupted } from '../../constants/tool-constants'
 
+import { ToolInput, ToolResult } from '../../types/tool.types'
+
 interface CompactToolRendererProps {
   name: string
   displayName: string
-  input?: any
-  toolResult?: any
+  input?: ToolInput
+  toolResult?: ToolResult
   hasResult: boolean
   hasError: boolean
   isInterrupted: boolean

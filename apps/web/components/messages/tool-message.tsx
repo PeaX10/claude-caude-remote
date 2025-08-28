@@ -3,11 +3,12 @@ import { useState } from 'react'
 import { colors, spacing } from '../../theme/colors'
 import { Feather } from '@expo/vector-icons'
 import { ToolUseIndicator } from '../agentic-indicators'
+import { ToolInput } from '../../types/tool.types'
 
 interface ToolMessageProps {
   toolUse?: {
     name: string
-    input?: any
+    input?: ToolInput
   }
   toolResult?: {
     content?: string

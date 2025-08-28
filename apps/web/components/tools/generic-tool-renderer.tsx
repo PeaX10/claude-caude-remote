@@ -3,12 +3,13 @@ import { ToolHeader } from '../shared/tool-header'
 import { ErrorDisplay } from '../shared/error-display'
 import { ShimmerText } from '../shared/shimmer-text'
 import { colors, spacing } from '../../theme/colors'
+import { ToolInput, ToolResult } from '../../types/tool.types'
 
 interface GenericToolRendererProps {
   name: string
   displayName: string
-  input?: any
-  toolResult?: any
+  input?: ToolInput
+  toolResult?: ToolResult
   hasResult: boolean
   hasError: boolean
   isInterrupted: boolean

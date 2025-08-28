@@ -4,7 +4,24 @@ const io = require('socket.io-client')
 import type { Socket } from 'socket.io-client'
 import { useToolTracker } from '../hooks/use-tool-tracker'
 import { useProjectStore } from '../store/project-store'
-import type { ClaudeStatus, WebSocketContextType } from '../types/websocket.types'
+import type { 
+  ClaudeStatus, 
+  WebSocketContextType,
+  ClaudeStatusEvent,
+  ClaudeSystemEvent,
+  ClaudeAssistantEvent,
+  ClaudeUserEvent,
+  ClaudeSessionEvent,
+  ClaudeOutputEvent,
+  ClaudeSessionHistoryEvent,
+  ClaudeSessionUpdatedEvent,
+  ClaudeSessionsEvent,
+  ClaudeStartResultEvent,
+  FileListResultEvent,
+  ToolUseData,
+  ToolResultData,
+  ContextMessageData
+} from '../types/websocket.types'
 import type { ClaudeMessage, AvailableSession } from '../types/project.types'
 import type { HistoryItem, RealtimeMessage } from '../types/message.types'
 import { ensureString, transformHistoryItem } from '../utils/message-utils'
@@ -76,7 +93,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     addMessage({ human: content })
   }, [addMessage])
 
-  const handleToolUse = useCallback((data: { id: string; tool: string; input: Record<string, unknown> }) => {
+  const handleToolUse = useCallback((data: ToolUseData) => {
     startTool(data.id, data.tool, data.input)
     addMessage({
       tool_use: {
@@ -88,7 +105,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     })
   }, [startTool, addMessage])
 
-  const handleToolResult = useCallback((data: { tool_use_id: string; content: unknown; error?: string }) => {
+  const handleToolResult = useCallback((data: ToolResultData) => {
     completeTool(data.tool_use_id, !!data.error, data)
 
     setMessages(prev => {
@@ -124,7 +141,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     })
   }, [completeTool])
 
-  const addContextMessage = useCallback((data: { tools?: string[]; [key: string]: unknown }) => {
+  const addContextMessage = useCallback((data: ContextMessageData) => {
     addMessage({
       context: {
         type: 'context',
@@ -149,10 +166,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     let currentAgentId: string | null = null
 
-    history.forEach((item: any) => {
+    history.forEach((item: HistoryItem) => {
       if (item.type === 'assistant' && item.message?.content) {
         const toolUse = Array.isArray(item.message.content) ?
-          item.message.content.find((c: any) => c.type === 'tool_use') : null
+          item.message.content.find((c) => c.type === 'tool_use') : null
 
         if (toolUse?.name === 'Task' && toolUse.input?.subagent_type) {
           currentAgentId = toolUse.id
@@ -162,7 +179,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
       if (item.type === 'user' && item.message?.content && currentAgentId) {
         const toolResult = Array.isArray(item.message.content) ?
-          item.message.content.find((c: any) => c.type === 'tool_result') : null
+          item.message.content.find((c) => c.type === 'tool_result') : null
 
         if (toolResult && item.toolUseResult) {
           const stats = item.toolUseResult
@@ -186,12 +203,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
 
   const processRealtimeMessages = useCallback((newMessages: RealtimeMessage[]) => {
-    const validMessages = newMessages.map((item: any) => {
+    const validMessages = newMessages.map((item: RealtimeMessage) => {
       if (item.tool_use || (item.type === 'assistant' && item.message?.content)) {
         let toolUse = item.tool_use
 
         if (!toolUse && item.message?.content && Array.isArray(item.message.content)) {
-          toolUse = item.message.content.find((c: any) => c.type === 'tool_use')
+          toolUse = item.message.content.find((c) => c.type === 'tool_use')
         }
 
         if (toolUse) {
@@ -217,7 +234,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         let toolResult = item.tool_result
 
         if (!toolResult && item.message?.content && Array.isArray(item.message.content)) {
-          toolResult = item.message.content.find((c: any) => c.type === 'tool_result')
+          toolResult = item.message.content.find((c) => c.type === 'tool_result')
         }
 
         if (toolResult) {
@@ -246,7 +263,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           content = item.content
         } else if (item.message?.content) {
           if (Array.isArray(item.message.content)) {
-            const textContent = item.message.content.find((c: any) => c.type === 'text')
+            const textContent = item.message.content.find((c) => c.type === 'text')
             content = textContent?.text || ''
           } else {
             content = item.message.content
@@ -273,10 +290,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           if (typeof item.message.content === 'string') {
             content = item.message.content
           } else if (Array.isArray(item.message.content)) {
-            const textContent = item.message.content.find((c: any) => c.type === 'text')
+            const textContent = item.message.content.find((c) => c.type === 'text')
             content = textContent?.text || textContent?.content || ''
             if (!content) {
-              content = item.message.content.map((c: any) =>
+              content = item.message.content.map((c) =>
                 typeof c === 'string' ? c : (c.text || c.content || '')
               ).join('')
             }
@@ -292,7 +309,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       }
 
       return null
-    }).filter((msg: any) => msg !== null)
+    }).filter((msg): msg is ClaudeMessage => msg !== null)
 
     const toolResults = validMessages.filter(msg => msg && msg.tool_result)
     const otherMessages = validMessages.filter(msg => msg && !msg.tool_result)
@@ -386,7 +403,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       loadedSessionsRef.current.clear()
     })
 
-    newSocket.on('claude_status', (status: any) => {
+    newSocket.on('claude_status', (status: ClaudeStatusEvent) => {
       setClaudeStatus({
         isRunning: Boolean(status?.isRunning),
         pid: status?.pid || null,
@@ -395,17 +412,17 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     })
 
     // Real-time streaming event handlers
-    newSocket.on('claude_system', (data: any) => {
+    newSocket.on('claude_system', (data: ClaudeSystemEvent) => {
       addSystemMessage(data.message?.content || data.content || '')
     })
 
-    newSocket.on('claude_assistant', (data: any) => {
+    newSocket.on('claude_assistant', (data: ClaudeAssistantEvent) => {
       if (data.message?.content?.[0]?.type === 'text') {
         addAssistantMessage(data.message.content[0].text)
       }
     })
 
-    newSocket.on('claude_user', (data: any) => {
+    newSocket.on('claude_user', (data: ClaudeUserEvent) => {
       if (data.message?.content?.[0]?.type === 'text') {
         addUserMessage(data.message.content[0].text)
       }
@@ -415,19 +432,19 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     newSocket.on('claude_tool_result', handleToolResult)
     newSocket.on('claude_context', addContextMessage)
 
-    newSocket.on('claude_session', (data: any) => {
+    newSocket.on('claude_session', (data: ClaudeSessionEvent) => {
       if (data.subtype !== 'session_start') {
         addSessionMessage(data)
       }
     })
 
-    newSocket.on('claude_output', (message: any) => {
+    newSocket.on('claude_output', (message: ClaudeOutputEvent) => {
       if (message?.content) {
         addAssistantMessage(String(message.content))
       }
     })
 
-    newSocket.on('claude_session_history', (data: any) => {
+    newSocket.on('claude_session_history', (data: ClaudeSessionHistoryEvent) => {
       if (data?.history && data?.sessionId) {
         const validMessages = processHistoryMessages(data.history)
 
@@ -454,7 +471,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    newSocket.on('claude_session_updated', (data: any) => {
+    newSocket.on('claude_session_updated', (data: ClaudeSessionUpdatedEvent) => {
       if (data?.sessionId && data?.newMessages && Array.isArray(data.newMessages)) {
         // Find the tab with this session across ALL projects
         const allProjects = projects || []
@@ -462,8 +479,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           const targetTab = project.tabs.find(tab => tab.sessionId === data.sessionId)
           if (targetTab) {
             // Add messages to the correct tab, regardless of which project is active
-            data.newMessages.forEach((msg: any) => {
-              addMessageToTab(project.id, targetTab.id, msg)
+            data.newMessages.forEach((msg) => {
+              addMessageToTab(project.id, targetTab.id, {
+                ...msg.message,
+                timestamp: new Date(msg.timestamp).getTime()
+              })
             })
             break
           }
@@ -480,9 +500,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     newSocket.on('claude_session_watch_error', () => {})
 
     // Handle available sessions response
-    newSocket.on('claude_sessions', (data: any) => {
+    newSocket.on('claude_sessions', (data: ClaudeSessionsEvent) => {
       // Handle both old format (sessions array) and new format (with projectPath)
-      let sessions: any[] = []
+      let sessions: AvailableSession[] = []
       let projectPath: string | undefined
 
       if (Array.isArray(data)) {
@@ -502,7 +522,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    newSocket.on('claude_start_result', (data: any) => {
+    newSocket.on('claude_start_result', (data: ClaudeStartResultEvent) => {
       if (data.status) {
         setClaudeStatus({
           isRunning: Boolean(data.status.isRunning),

@@ -1,8 +1,10 @@
 import type { ClaudeMessage } from '../types/project.types'
 import type { RealtimeMessage, MessageContent } from '../types/message.types'
 import { ensureString } from './message-utils'
+import { ToolInput } from '../types/tool.types'
+import { ContextMessageData } from '../types/websocket.types'
 
-export function createToolUseMessage(data: { id: string; tool: string; input: Record<string, unknown> }): ClaudeMessage {
+export function createToolUseMessage(data: { id: string; tool: string; input: ToolInput }): ClaudeMessage {
   return {
     tool_use: {
       name: data.tool,
@@ -14,7 +16,7 @@ export function createToolUseMessage(data: { id: string; tool: string; input: Re
   }
 }
 
-export function createToolResultContent(data: { tool_use_id: string; content: unknown; error?: string }) {
+export function createToolResultContent(data: { tool_use_id: string; content: string | Record<string, string | number | boolean | null>; error?: string }) {
   return {
     content: ensureString(data.content),
     tool_use_id: data.tool_use_id,
@@ -22,7 +24,7 @@ export function createToolResultContent(data: { tool_use_id: string; content: un
   }
 }
 
-export function createContextMessage(data: { tools?: string[]; [key: string]: unknown }): ClaudeMessage {
+export function createContextMessage(data: ContextMessageData): ClaudeMessage {
   return {
     context: {
       type: 'context',

@@ -4,11 +4,13 @@ import { ShimmerText } from '../shared/shimmer-text'
 import { terminalStyles, errorStyles } from '../../styles/tool-styles'
 import { colors } from '../../theme/colors'
 
+import { ToolInput, ToolResult } from '../../types/tool.types'
+
 interface BashToolRendererProps {
   name: string
   displayName: string
-  input?: any
-  toolResult?: any
+  input?: ToolInput
+  toolResult?: ToolResult
   hasResult: boolean
   hasError: boolean
   isInterrupted: boolean

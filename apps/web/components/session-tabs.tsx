@@ -32,7 +32,7 @@ export function SessionTabs({ projectId }: SessionTabsProps) {
     setActiveTab(projectId, newTabId);
   };
 
-  const handleCloseTab = (tabId: string, e: any) => {
+  const handleCloseTab = (tabId: string, e: { stopPropagation: () => void }) => {
     e.stopPropagation();
     removeTab(projectId, tabId);
   };

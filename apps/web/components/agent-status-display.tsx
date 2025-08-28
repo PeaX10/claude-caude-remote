@@ -4,6 +4,7 @@ import { colors, spacing } from '../theme/colors'
 import { LoadingSpinner } from './shared/loading-spinner'
 import { ShimmerText } from './shared/shimmer-text'
 import { ToolExecution } from '../hooks/use-tool-tracker'
+import { FeatherIconName } from '../types/icon.types'
 
 interface AgentStatusDisplayProps {
   activeAgents: ToolExecution[]
@@ -38,7 +39,7 @@ const formatTokens = (tokens: number) => {
   return tokens.toString()
 }
 
-const getAgentIcon = (agentType: string) => {
+const getAgentIcon = (agentType: string): FeatherIconName => {
   const iconMap: Record<string, string> = {
     'general-purpose': 'cpu',
     'python-expert': 'code',
@@ -60,7 +61,7 @@ const getAgentIcon = (agentType: string) => {
     'output-style-setup': 'palette'
   }
   
-  return iconMap[agentType] || 'tool'
+  return (iconMap[agentType] || 'tool') as FeatherIconName
 }
 
 const getAgentDisplayName = (agentType: string) => {
@@ -88,7 +89,7 @@ const getAgentDisplayName = (agentType: string) => {
   return nameMap[agentType] || agentType.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
 }
 
-const formatAgentStats = (agent: any) => {
+const formatAgentStats = (agent: ToolExecution) => {
   const parts = ['Done']
   
   if (agent.toolCount) {
@@ -123,7 +124,7 @@ export function AgentStatusDisplay({ activeAgents, completedAgents, agentToolCou
             <View style={styles.agentHeader}>
               <View style={styles.agentIconContainer}>
                 <Feather 
-                  name={getAgentIcon(agent.agentType) as any} 
+                  name={getAgentIcon(agent.agentType)} 
                   size={14} 
                   color={colors.accent.primary} 
                 />
@@ -161,7 +162,7 @@ export function AgentStatusDisplay({ activeAgents, completedAgents, agentToolCou
           <View style={styles.completedAgentHeader}>
             <View style={styles.completedAgentIconContainer}>
               <Feather 
-                name={getAgentIcon(agent.agentType) as any} 
+                name={getAgentIcon(agent.agentType)} 
                 size={12} 
                 color={colors.text.secondary} 
               />

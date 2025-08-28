@@ -13,7 +13,7 @@ import { useStore } from "../store";
 import { useProjectStore } from "../store/project-store";
 import { useScrollHandler } from "../hooks/use-scroll-handler";
 import { EmptyState } from "./empty-state";
-import { ClaudeMessage } from "./claude-message";
+import { ClaudeMessageView } from "./claude-message";
 import { ToolMessage } from "./tool-message";
 import { MessageInput } from "./message-input";
 import { TypingIndicator } from "./typing-indicator";
@@ -377,7 +377,7 @@ export default function ChatContent() {
                 }
 
                 return (
-                  <ClaudeMessage
+                  <ClaudeMessageView
                     key={index}
                     message={message}
                     fadeAnim={fadeAnim}

@@ -12,6 +12,7 @@ import { Feather } from '@expo/vector-icons';
 import { colors, spacing } from '../theme/colors';
 import { useProjectStore } from '../store/project-store';
 import { useRouter, usePathname } from 'expo-router';
+import { FolderSelectorButton } from './folder-selector-button';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -134,7 +135,15 @@ export function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </TouchableOpacity>
           
           {/* Projects Section */}
-          <Text style={styles.sectionTitle}>Projects</Text>
+          <View style={styles.projectsHeader}>
+            <Text style={styles.sectionTitle}>Projects</Text>
+            <FolderSelectorButton 
+              variant="secondary"
+              size="small"
+              showIcon={true}
+              style={styles.addFolderButton}
+            />
+          </View>
           
           {projects.map((project) => {
             const isActive = activeProjectId === project.id;
@@ -264,15 +273,26 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     marginLeft: spacing.sm,
   },
+  projectsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.sm,
+  },
   sectionTitle: {
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     color: colors.text.tertiary,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.lg,
+    flex: 1,
+  },
+  addFolderButton: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: 4,
   },
   projectItem: {
     flexDirection: 'row',

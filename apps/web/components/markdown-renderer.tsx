@@ -3,10 +3,11 @@ import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
 import { colors, spacing } from '../theme/colors'
 import { Feather } from '@expo/vector-icons'
 import { useState } from 'react'
+import { ViewStyleProp } from '../types/style.types'
 
 interface MarkdownRendererProps {
   content: string
-  style?: any
+  style?: ViewStyleProp
 }
 
 // Parse markdown to React Native components

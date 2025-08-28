@@ -14,7 +14,7 @@ import { useStore } from "../../store";
 import { useProjectStore } from "../../store/project-store";
 import { useScrollHandler } from "../../hooks/use-scroll-handler";
 import { EmptyState } from "../../components/empty-state";
-import { ClaudeMessage } from "../../components/claude-message";
+import { ClaudeMessageView } from "../../components/claude-message";
 import { ToolMessage } from "../../components/tool-message";
 import { MessageInput } from "../../components/message-input";
 import { TypingIndicator } from "../../components/typing-indicator";
@@ -272,7 +272,7 @@ export default function ChatScreen() {
 
                 // Render regular message (tool_result messages already filtered out)
                 return (
-                  <ClaudeMessage
+                  <ClaudeMessageView
                     key={index}
                     message={message}
                     fadeAnim={fadeAnim}

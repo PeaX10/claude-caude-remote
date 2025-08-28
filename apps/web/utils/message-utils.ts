@@ -1,7 +1,7 @@
 import type { ClaudeMessage } from '../types/project.types'
 import type { MessageContent, HistoryItem } from '../types/message.types'
 
-export function ensureString(content: unknown): string {
+export function ensureString(content: string | Record<string, string | number | boolean | null> | null | undefined): string {
   return typeof content === 'string' ? content : JSON.stringify(content)
 }
 

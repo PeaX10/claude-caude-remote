@@ -34,3 +34,96 @@ export interface WebSocketContextType {
   agentToolCounts: Record<string, number>
   resetToolTracking: () => void
 }
+
+export interface ClaudeStatusEvent {
+  status: 'active' | 'inactive' | 'error'
+  message?: string
+}
+
+export interface ClaudeSystemEvent {
+  message: string
+  timestamp: string
+}
+
+export interface ClaudeAssistantEvent {
+  sessionId: string
+  message: ClaudeMessage
+}
+
+export interface ClaudeUserEvent {
+  sessionId: string
+  message: ClaudeMessage
+}
+
+export interface ClaudeSessionEvent {
+  sessionId: string
+  name: string
+  projectPath: string
+}
+
+export interface ClaudeOutputEvent {
+  type: 'text' | 'code' | 'error'
+  content: string
+  sessionId?: string
+}
+
+export interface ClaudeSessionHistoryEvent {
+  sessionId: string
+  projectPath: string
+  history: Array<{
+    message: ClaudeMessage
+    timestamp: string
+  }>
+}
+
+export interface ClaudeSessionUpdatedEvent {
+  sessionId: string
+  projectPath: string
+  newMessages: Array<{
+    message: ClaudeMessage
+    timestamp: string
+  }>
+}
+
+export interface ClaudeSessionsEvent {
+  projectPath: string
+  sessions: AvailableSession[]
+}
+
+export interface ClaudeStartResultEvent {
+  success: boolean
+  sessionId?: string
+  error?: string
+}
+
+export interface FileListResultEvent {
+  success: boolean
+  path: string
+  items?: Array<{
+    name: string
+    isDirectory: boolean
+    path: string
+    size?: number
+    modified?: string
+  }>
+  error?: string
+}
+
+export interface ToolUseData {
+  id: string
+  tool: string
+  input: Record<string, string | number | boolean | null | undefined | ToolUseData>
+}
+
+export interface ToolResultData {
+  tool_use_id: string
+  content: string | Record<string, string | number | boolean | null>
+  error?: string
+}
+
+export interface ContextMessageData {
+  tools?: string[]
+  contextPercent?: number
+  sessionStatus?: string
+  [key: string]: string | number | boolean | string[] | undefined
+}
