@@ -5,10 +5,12 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { v4 as uuidv4 } from 'uuid';
 import { useProjectStore } from '../store/project-store';
+import { useWebSocket } from '../contexts/websocket-context';
 import { colors, spacing } from '../theme/colors';
 
 interface SessionTabsProps {
@@ -17,6 +19,7 @@ interface SessionTabsProps {
 
 export function SessionTabs({ projectId }: SessionTabsProps) {
   const { projects, setActiveTab, removeTab, addTab } = useProjectStore();
+  const { isSessionHistoryLoading } = useWebSocket();
   
   const project = projects.find(p => p.id === projectId);
   if (!project) return null;
@@ -25,7 +28,7 @@ export function SessionTabs({ projectId }: SessionTabsProps) {
 
   const handleNewTab = () => {
     const newTabId = addTab(projectId, {
-      sessionId: uuidv4(),
+      sessionId: `new_${uuidv4()}`,
       title: 'New Chat',
       messages: [], // Start with empty messages
     });
@@ -56,6 +59,13 @@ export function SessionTabs({ projectId }: SessionTabsProps) {
             activeOpacity={0.7}
           >
             <View style={styles.tabContent}>
+              {!tab.sessionId.startsWith('new_') && isSessionHistoryLoading(tab.sessionId) ? (
+                <ActivityIndicator 
+                  size="small" 
+                  color={activeTabId === tab.id ? colors.text.primary : colors.text.secondary}
+                  style={{ marginRight: spacing.xs }}
+                />
+              ) : null}
               <Text 
                 style={[
                   styles.tabTitle,

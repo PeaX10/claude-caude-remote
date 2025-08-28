@@ -22,6 +22,7 @@ export interface WebSocketContextType {
   watchSession: (sessionId: string, projectPath: string) => void
   unwatchSession: (sessionId: string, projectPath: string) => void
   loadSessionHistory: (sessionId: string, projectPath: string) => void
+  isSessionHistoryLoading: (sessionId: string) => boolean
   getAvailableSessions: (projectPath?: string) => void
   totalToolsUsed: number
   runningToolsCount: number

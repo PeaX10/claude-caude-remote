@@ -74,7 +74,6 @@ export default function ChatContent() {
   const styles = createMainStyles();
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
@@ -106,6 +105,7 @@ export default function ChatContent() {
     agentToolCounts,
     getAgentToolIds,
     loadSessionHistory,
+    isSessionHistoryLoading,
   } = useWebSocket();
 
   // Get messages from the active tab - use the messages directly from the tab
@@ -150,23 +150,11 @@ export default function ChatContent() {
       // Only load history for existing sessions, not for new tabs
       const isNewSession = activeSessionId.startsWith('new_');
       if (!isNewSession && (!messages || messages.length === 0)) {
-        setIsLoadingHistory(true);
         loadSessionHistory(activeSessionId, activeProject.path);
-      } else {
-        // Reset loading state for new tabs
-        setIsLoadingHistory(false);
       }
-    } else {
-      setIsLoadingHistory(false);
     }
   }, [activeSessionId, activeProject?.path, isConnected, messages.length, loadSessionHistory]);
 
-  // Hide loading when messages arrive
-  useEffect(() => {
-    if (messages.length > 0) {
-      setIsLoadingHistory(false);
-    }
-  }, [messages.length]);
 
   const filteredMessages = useMemo(() => {
     const result = messages.filter((message) => {
@@ -320,7 +308,7 @@ export default function ChatContent() {
           onContentSizeChange={handleContentSizeChange}
           showsVerticalScrollIndicator={false}
         >
-          {isLoadingHistory ? (
+          {activeSessionId && isSessionHistoryLoading(activeSessionId) ? (
             <View style={{
               flex: 1,
               justifyContent: 'center',
