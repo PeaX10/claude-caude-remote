@@ -20,10 +20,10 @@ interface EmptyStateProps {
 
 const createEmptyStyles = () => ({
   emptyState: {
-    flex: 1,
-    justifyContent: 'center' as const,
+    paddingVertical: spacing.xl * 3,
     alignItems: 'center' as const,
     paddingHorizontal: spacing.xl,
+    minHeight: 400,
   },
   emptyTitle: {
     color: colors.text.primary,

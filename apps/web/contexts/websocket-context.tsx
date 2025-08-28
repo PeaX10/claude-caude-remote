@@ -51,6 +51,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [loadingSessionHistory, setLoadingSessionHistory] = useState<
     Set<string>
   >(new Set());
+  const [justLoadedSessionId, setJustLoadedSessionId] = useState<string | null>(null);
   const activeSubscriptionsRef = useRef<Set<string>>(new Set());
   const loadedSessionsRef = useRef<Set<string>>(new Set());
   const socketRef = useRef<Socket | null>(null);
@@ -595,6 +596,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
                   validMessages.forEach((msg) => {
                     addMessageToTab(activeProjectId!, targetTab.id, msg);
                   });
+                  // Signal that this session just loaded
+                  setJustLoadedSessionId(data.sessionId);
+                  // Clear after a short delay
+                  setTimeout(() => setJustLoadedSessionId(null), 100);
                 }
               }
             }
@@ -759,11 +764,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         return;
       }
       
-      if (!loadedSessionsRef.current.has(sessionId)) {
+      // Always allow loading, but prevent multiple simultaneous loads for the same session
+      if (!loadingSessionHistory.has(sessionId)) {
         // Mark session as loading
         setLoadingSessionHistory((prev) => new Set(prev).add(sessionId));
         socket?.emit("claude_get_session_history", { sessionId, projectPath });
-        loadedSessionsRef.current.add(sessionId);
         
         // Add a timeout to remove loading state if no response
         setTimeout(() => {
@@ -775,7 +780,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         }, 10000); // 10 second timeout
       }
     },
-    [socket]
+    [socket, loadingSessionHistory]
   );
 
   const isSessionHistoryLoading = useCallback(
@@ -814,6 +819,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         unwatchSession,
         loadSessionHistory,
         isSessionHistoryLoading,
+        justLoadedSessionId,
         getAvailableSessions,
         // Tool tracking
         totalToolsUsed,

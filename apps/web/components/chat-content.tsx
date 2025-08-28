@@ -106,6 +106,7 @@ export default function ChatContent() {
     getAgentToolIds,
     loadSessionHistory,
     isSessionHistoryLoading,
+    justLoadedSessionId,
   } = useWebSocket();
 
   // Get messages from the active tab - use the messages directly from the tab
@@ -145,15 +146,20 @@ export default function ChatContent() {
     previousProjectRef.current = activeProjectId || undefined;
   }, [activeTab?.id, activeProjectId, currentScrollPosition, saveScrollPosition]);
 
+  // Track which session was loaded last
+  const lastLoadedSessionRef = useRef<string | null>(null);
+  
   useEffect(() => {
     if (activeSessionId && activeProject?.path && isConnected) {
       // Only load history for existing sessions, not for new tabs
       const isNewSession = activeSessionId.startsWith('new_');
-      if (!isNewSession && (!messages || messages.length === 0)) {
+      // Load if it's a different session or if there are no messages yet
+      if (!isNewSession && (lastLoadedSessionRef.current !== activeSessionId || messages.length === 0)) {
         loadSessionHistory(activeSessionId, activeProject.path);
+        lastLoadedSessionRef.current = activeSessionId;
       }
     }
-  }, [activeSessionId, activeProject?.path, isConnected, messages.length, loadSessionHistory]);
+  }, [activeSessionId, activeProject?.path, isConnected, loadSessionHistory]);
 
 
   const filteredMessages = useMemo(() => {
@@ -237,6 +243,16 @@ export default function ChatContent() {
       }
     }, 100);
   }, [activeTab?.id, displayableMessages.length, activeProjectId]);
+
+  // Auto-scroll when session history is loaded
+  useEffect(() => {
+    if (justLoadedSessionId && justLoadedSessionId === activeTab?.sessionId && messages.length > 0) {
+      // Small delay to ensure messages are rendered
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
+  }, [justLoadedSessionId, activeTab?.sessionId, messages.length, scrollToBottom]);
 
   const handleSend = useCallback(() => {
     if (!inputText.trim() || !activeTab) return;

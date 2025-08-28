@@ -35,6 +35,10 @@ export function SessionTabs({ projectId }: SessionTabsProps) {
     setActiveTab(projectId, newTabId);
   };
 
+  const handleTabClick = (tabId: string) => {
+    setActiveTab(projectId, tabId);
+  };
+
   const handleCloseTab = (tabId: string, e: { stopPropagation: () => void }) => {
     e.stopPropagation();
     removeTab(projectId, tabId);
@@ -55,7 +59,7 @@ export function SessionTabs({ projectId }: SessionTabsProps) {
               styles.tab,
               activeTabId === tab.id && styles.activeTab,
             ]}
-            onPress={() => setActiveTab(projectId, tab.id)}
+            onPress={() => handleTabClick(tab.id)}
             activeOpacity={0.7}
           >
             <View style={styles.tabContent}>
